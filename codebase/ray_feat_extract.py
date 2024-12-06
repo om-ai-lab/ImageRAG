@@ -88,12 +88,11 @@ class ImageFeatureExtractionDataset(Dataset):
 
 
 @ray.remote
-def extract_image_feature(model_path, img_path_list, batch_size, num_gpu, save_dir, clip_encoder_name="GeoRSCLIP"):
+def extract_image_feature(task_id, model_path, img_path_list, batch_size, num_gpu, save_dir, clip_encoder_name="GeoRSCLIP"):
     pl.seed_everything(2024)
     os.makedirs(save_dir, exist_ok=True)
     os.environ['CUDA_VISIBLE_DEVICES'] = '0'
     device = 'cuda' if num_gpu > 0 else 'cpu'
-    # device = 'cpu'
     print("device: {}".format(device))
 
     model, _, img_preprocess = open_clip.create_model_and_transforms(
@@ -110,18 +109,32 @@ def extract_image_feature(model_path, img_path_list, batch_size, num_gpu, save_d
     dataset = ImageFeatureExtractionDataset(img_path_list, img_preprocess)
     dataloader = DataLoader(dataset, batch_size=batch_size, num_workers=0)
 
+
     with torch.no_grad(), torch.cuda.amp.autocast():
         for index, batch in tqdm(enumerate(dataloader)):
             x, img_path_list = batch
             x = x.to(device)
-            clip_feat = model.encode_image(x).cpu().detach().numpy()
-            i = 0
-            for img_path in img_path_list:
-                img_name = img_path.split("/")[-1].split(".")[0]
-                grid_image_feature_path = os.path.join(save_dir, img_name)
+            clip_feat = model.encode_image(x).detach().cpu().numpy()
+            # clip_feat = model.encode_image(x).detach().cpu()
+
+            feat_list = []
+            img_name_list = []
+            for i, img_path in enumerate(img_path_list):
+                img_name = img_path.split("/")[-1]
+                # img_name = img_path.split("/")[-1].split(".")[0]
+                # grid_image_feature_path = os.path.join(save_dir, img_name)
                 feat = clip_feat[i].reshape(1, -1)
-                np.save(grid_image_feature_path, feat)
-                i += 1
+                feat_list.append(feat)
+                img_name_list.append(img_name)
+                # np.save(grid_image_feature_path, feat)
+
+            dump_name = "img_name_feat_{}-{}.pkl".format(task_id, index)
+            dump_path = os.path.join(save_dir, dump_name)
+            result_dict = dict()
+            result_dict["img_name_list"] = img_name_list
+            result_dict["feat_list"] = feat_list
+            with open(dump_path, "wb") as f:
+                pkl.dump(result_dict, f)
 
 
 def extract(args, modality="image"):
@@ -161,15 +174,13 @@ def extract(args, modality="image"):
         print("image feature save dir: {}".format(args.save_dir))
 
         result_status = []
-        j = 0
-        for img_path_list in img_path_assignments:
+        for task_id, img_path_list in enumerate(img_path_assignments):
             status = extract_image_feature.options(num_cpus=4, num_gpus=args.num_gpu).remote(
                 # model_path, img_path_list, batch_size, num_gpu, clip_encoder_name="GeoRSCLIP"
-                args.model_path, img_path_list, args.batch_size, args.num_gpu, args.save_dir
+                task_id, args.model_path, img_path_list, args.batch_size, args.num_gpu, args.save_dir
             )
             result_status.append(status)
-            print("runner: {}".format(j))
-            j += 1
+            print("runner: {}".format(task_id))
         ray.get(result_status)
 
         tic = datetime.now()
