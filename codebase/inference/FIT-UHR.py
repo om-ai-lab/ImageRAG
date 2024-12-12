@@ -19,13 +19,13 @@ import math
 import regex as re
 import shortuuid
 
-from ImageRAG_git.codebase.utils import (setup_vlm_model, set_up_paraphrase_model, setup_vqallm, setup_slow_text_encoder_model,
+from codebase.utils import (setup_vlm_model, set_up_paraphrase_model, setup_vqallm, setup_slow_text_encoder_model,
                    calculate_similarity_matrix, extract_vlm_img_text_feat, ranking_patch_t2p, paraphrase_model_inference,
                    text_expand_model_inference, setup_logger, meta_df2clsimg_dict, img_reduce, select_visual_cue, ranking_patch_visualcue2patch, load_yaml)
-from ImageRAG_git.codebase.cc_algo import img_2patch, vis_patches
-from ImageRAG_git.codebase.text_parser import extract_key_phrases
-from ImageRAG_git.codebase.llm_template import paraphrase_template, keyword_template, text_expansion_template
-from ImageRAG_git.codebase.sglang_util import get_paraphase_response, get_keyword_response, get_text_expansion_response
+from codebase.cc_algo import img_2patch, vis_patches
+from codebase.text_parser import extract_key_phrases
+from codebase.llm_template import paraphrase_template, keyword_template, text_expansion_template
+from codebase.sglang_util import get_paraphase_response, get_keyword_response, get_text_expansion_response
 
 from geochat.constants import IMAGE_TOKEN_INDEX, DEFAULT_IMAGE_TOKEN, DEFAULT_IM_START_TOKEN, DEFAULT_IM_END_TOKEN
 from geochat.conversation import conv_templates, SeparatorStyle
@@ -35,6 +35,8 @@ from geochat.model.builder import load_pretrained_model
 from geochat.mm_utils import tokenizer_image_token, KeywordsStoppingCriteria
 
 Image.MAX_IMAGE_PIXELS = None
+
+# export PYTHONPATH=$PYTHONPATH:/data1/zilun/grsm/ImageRAG_git
 
 
 def obb2poly_np_oc(rbboxes):
@@ -195,9 +197,9 @@ def main():
     pl.seed_everything(2024)
 
     parser = argparse.ArgumentParser(description='Process some integers.')
-    parser.add_argument('--cfg_path', type=str, default='/media/zilun/fanxiang4t/GRSM/ImageRAG_git/config/config_fituhr_inference.yaml', help='Path to the configuration file.')
+    parser.add_argument('--cfg_path', type=str, default='/data1/zilun/grsm/ImageRAG_git/config/config_fituhr_inference _server.yaml', help='Path to the configuration file.')
     parser.add_argument('--query_text', type=str, default='Suppose the top of this image represents north. How many aircraft are heading northeast? What is the color of the building rooftop to their southeast?', help='Path to the configuration file.')
-    parser.add_argument('--log_dir', type=str, default='../log', help='Path to the log file.')
+    parser.add_argument('--log_dir', type=str, default='./log', help='Path to the log file.')
     parser.add_argument('--base_url', type=str, default='http://127.0.0.1:34000/v1', help='base url')
 
     args = parser.parse_args()

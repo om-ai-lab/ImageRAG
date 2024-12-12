@@ -1,5 +1,5 @@
 import requests
-from ImageRAG_git.codebase.llm_template import paraphrase_template, keyword_template, text_expansion_template
+from codebase.llm_template import paraphrase_template, keyword_template, text_expansion_template
 import os
 
 

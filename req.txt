@@ -1,0 +1,4 @@
+ray
+lightning
+open_clip_torch
+openai
