@@ -85,16 +85,19 @@ def paraphrase_model_inference(model, tokenizer, query_text):
     return response
 
 def setup_vlm_model(model_path, device):
-    model, _, img_preprocess = open_clip.create_model_and_transforms(
-        model_name='ViT-L-14-336-quickgelu',
-        pretrained='openai',
-        precision="fp16",
-        device=device
-    )
-    tokenizer = open_clip.get_tokenizer(model_name='ViT-L-14-336-quickgelu')
-    checkpoint = torch.load(model_path, map_location=device)
-    msg = model.load_state_dict(checkpoint, strict=False)
-    model.eval()  # model in train mode by default, impacts some models with BatchNorm or stochastic depth active
+    if 'clip' in model_path:
+        model, _, img_preprocess = open_clip.create_model_and_transforms(
+            model_name='ViT-L-14-336-quickgelu',
+            pretrained='openai',
+            precision="fp16",
+            device=device
+        )
+        tokenizer = open_clip.get_tokenizer(model_name='ViT-L-14-336-quickgelu')
+        checkpoint = torch.load(model_path, map_location=device)
+        msg = model.load_state_dict(checkpoint, strict=False)
+        model.eval()  # model in train mode by default, impacts some models with BatchNorm or stochastic depth active
+    elif 'skysensegpt' in model_path:
+        pass
     return model, img_preprocess, tokenizer
 
 
