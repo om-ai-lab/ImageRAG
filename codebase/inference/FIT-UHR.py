@@ -197,7 +197,7 @@ def main():
     pl.seed_everything(2024)
 
     parser = argparse.ArgumentParser(description='Process some integers.')
-    parser.add_argument('--cfg_path', type=str, default='/data1/zilun/grsm/ImageRAG_git/config/config_fituhr_inference _server.yaml', help='Path to the configuration file.')
+    parser.add_argument('--cfg_path', type=str, default='/media/zilun/fanxiang4t/GRSM/ImageRAG_git/config/config_fituhr_inference.yaml', help='Path to the configuration file.')
     parser.add_argument('--query_text', type=str, default='Suppose the top of this image represents north. How many aircraft are heading northeast? What is the color of the building rooftop to their southeast?', help='Path to the configuration file.')
     parser.add_argument('--log_dir', type=str, default='./log', help='Path to the log file.')
     parser.add_argument('--base_url', type=str, default='http://127.0.0.1:34000/v1', help='base url')

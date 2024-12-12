@@ -76,7 +76,7 @@ vector_database:
       "/media/zilun/fanxiang4t/GRSM/IRAG/imageRAG/codebase/vector_database/mm_vector_database"
 
 question_file_path:
-  "/media/zilun/fanxiang4t/GRSM/ImageRAG_git/data/eval/FIT-test-question-coordinate.jsonl"
+  "/media/zilun/fanxiang4t/GRSM/ImageRAG_git/data/eval/test_FITRS_complex_comprehension_eval.jsonl"
 
 answers_file_path:
   "/media/zilun/fanxiang4t/GRSM/ImageRAG_git/data/eval/FITUHR_cc_skysensegpt-ft.jsonl"
