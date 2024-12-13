@@ -2,3 +2,8 @@ ray
 lightning
 open_clip_torch
 openai
+mmcv
+terminaltables
+httpx
+jsonlines
+jupyterlab
