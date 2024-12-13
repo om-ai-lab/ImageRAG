@@ -6,10 +6,10 @@ import os
 import json
 from tqdm import tqdm
 import re
-from sgg_eval.sgg_eval import Compute_Pred_Matches
-from sgg_eval.vg_eval import do_vg_evaluation
+from codebase.inference.FIT_Eval.sgg_eval.sgg_eval import Compute_Pred_Matches
+from codebase.inference.FIT_Eval.sgg_eval.vg_eval import do_vg_evaluation
 import numpy as np
-from eval_map import eval_rbbox_map 
+from codebase.inference.FIT_Eval.eval_map import eval_rbbox_map
 
 
 # ## all categories
@@ -591,8 +591,14 @@ def evaluation_metrics_ComplexCompre(data_path):
             if 'sorry' in gt:  # negative sample
                 continue
             gt_triplets_t6, gt_bboxes_t6, gt_annotations_per_image6 = extract_triplets_from_str_task6(gt)
-            pre_triplets_t6, pre_bboxes_t6, det_results_per_image6 = extract_triplets_from_str_task6(answer, add_score=True)
-
+            try:
+                pre_triplets_t6, pre_bboxes_t6, det_results_per_image6 = extract_triplets_from_str_task6(answer, add_score=True)
+            except:
+                # print(gt)
+                # print(answer)
+                # print()
+                print("pass")
+                continue
             ## 2) 按照SGG中的eval方式来进行评估
             # Compute_Pred_Matches(gt_triplets, pre_triplets, gt_bboxes, pre_bboxes, iou_thres=0.5, phrdet=False)
             gt_input_t6 = {'gt_triplet':gt_triplets_t6, 'gt_bboxes': gt_bboxes_t6}
@@ -631,6 +637,7 @@ def evaluation_metrics_ComplexCompre(data_path):
     # eval map
     mean_ap_4, result_4 = eval_rbbox_map(det_task_4, gt_task_4, iou_thr=iou_thr)
     print(f"Task-Object Reasoning mean ap: {mean_ap_4}")
+
     ### Task 5
     print("Task-Region-level SGG result:")
     do_vg_evaluation(gt_inputs_task5, predictions_task5, iou_thres=[iou_thr])

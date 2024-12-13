@@ -249,6 +249,10 @@ def eval_rbbox_map(det_results,
                     num_gts[k] += np.sum((gt_areas >= min_area)
                                          & (gt_areas < max_area))
         # sort all det bboxes by score, also sort tp and fp
+        # try:
+        #     cls_dets = np.vstack(cls_dets)
+        # except:
+        #     print()
         cls_dets = np.vstack(cls_dets)
         num_dets = cls_dets.shape[0]
         sort_inds = np.argsort(-cls_dets[:, -1])

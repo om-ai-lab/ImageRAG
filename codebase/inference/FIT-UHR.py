@@ -26,6 +26,8 @@ from codebase.cc_algo import img_2patch, vis_patches
 from codebase.text_parser import extract_key_phrases
 from codebase.llm_template import paraphrase_template, keyword_template, text_expansion_template
 from codebase.sglang_util import get_paraphase_response, get_keyword_response, get_text_expansion_response
+from codebase.inference.FIT_Eval.eval_complex_comprehension import evaluation_metrics_ComplexCompre
+
 
 from geochat.constants import IMAGE_TOKEN_INDEX, DEFAULT_IMAGE_TOKEN, DEFAULT_IM_START_TOKEN, DEFAULT_IM_END_TOKEN
 from geochat.conversation import conv_templates, SeparatorStyle
@@ -33,6 +35,8 @@ from geochat.conversation import conv_templates, SeparatorStyle
 from geochat.model.builder import load_pretrained_model
 # from geochat.utils import disable_torch_init
 from geochat.mm_utils import tokenizer_image_token, KeywordsStoppingCriteria
+
+
 
 Image.MAX_IMAGE_PIXELS = None
 
@@ -180,8 +184,6 @@ def fituhr_inference(config):
                 output = output[:-len(stop_str)]
             output = output.strip()
 
-            # ans_id = shortuuid.uuid()
-
             ans_file.write(json.dumps({
                 "question_id": questions[count]["question_id"],
                 "image_id": questions[count]["image"],
@@ -191,6 +193,12 @@ def fituhr_inference(config):
             }) + "\n")
             count = count + 1
             ans_file.flush()
+    eval_cc(answers_file)
+
+
+def eval_cc(answer_file):
+    evaluation_metrics_ComplexCompre(answer_file)
+
 
 
 def main():

@@ -6,6 +6,7 @@ import json
 from tqdm import tqdm
 import re
 
+
 def obb2poly_np_oc_2rad(rbboxes):
     """Convert oriented bounding boxes to polygons.
 
@@ -32,37 +33,39 @@ def obb2poly_np_oc_2rad(rbboxes):
     polys = np.expand_dims(polys, axis=0)
     return polys
 
+
 def main():
-  
-    bench_jsonl_path = "test_FITRS_complex_comprehension_eval.jsonl"
+    bench_jsonl_path = "/media/zilun/fanxiang4t/GRSM/ImageRAG_git/data/eval/test_FITRS_complex_comprehension_eval.jsonl"
     # bench_jsonl_path = "test_FITRS_region_caption_eval.jsonl"
     base = [json.loads(q) for q in open(bench_jsonl_path, "r")]
-    output_file_path = 'test_FITRS_complex_comprehension_eval_8para.jsonl'
-
+    output_file_path = '/media/zilun/fanxiang4t/GRSM/ImageRAG_git/data/eval/test_FITRS_complex_comprehension_eval_8para.jsonl'
 
     # 匹配 <rbox>
     for i, answers in enumerate(tqdm(base)):
-        
+
         question = answers['question']
         gt = answers['ground_truth']
-        process_str=[question, gt]
-        
+        process_str = [question, gt]
+
         # 3) 进行替换,5参数->8参数
         for j, todo_str in enumerate(process_str):
             # 使用正则表达式查找所有 <rbox> 标签中的内容
             # pattern = r'<rbox>\((.*?)\)</rbox>'
             pattern = r'\{(<.*?>)\}'
+            # pattern = r'<rbox>\((.*?)\)</rbox>'
             # 使用正则表达式找到所有的矩形框
             matches = re.findall(pattern, todo_str)
             rboxes = []
             for match in matches:
                 # 在每个矩形框中，找到所有的数字
                 numbers_str = re.findall(r'<(.*?)>', match)
+                # numbers_str = re.findall(r'<(\d+\.\d+),(\d+\.\d+)>', match)
                 # 将数字转换为浮点数，并将角度转换为弧度
                 rbox = np.array(numbers_str, dtype=float)
                 polys = obb2poly_np_oc_2rad(rbox)[0]
                 x1_, y1_, x2_, y2_, x3_, y3_, x4_, y4_ = polys
-                rbox_str = "[%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f]" % (x1_, y1_, x2_, y2_, x3_, y3_, x4_, y4_)
+                rbox_str = "{<%.2f,%.2f><%.2f,%.2f><%.2f,%.2f><%.2f,%.2f>)}" % (
+                x1_, y1_, x2_, y2_, x3_, y3_, x4_, y4_)
 
                 todo_str = todo_str.replace(f'{{{match}}}', rbox_str)
             process_str[j] = todo_str
@@ -77,3 +80,7 @@ def main():
             outfile.write('\n')
 
     print('done!')
+
+
+if __name__ == "__main__":
+    main()
