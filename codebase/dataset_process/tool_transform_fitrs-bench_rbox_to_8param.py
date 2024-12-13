@@ -35,10 +35,9 @@ def obb2poly_np_oc_2rad(rbboxes):
 
 
 def main():
-    bench_jsonl_path = "/media/zilun/fanxiang4t/GRSM/ImageRAG_git/data/eval/test_FITRS_complex_comprehension_eval.jsonl"
-    # bench_jsonl_path = "test_FITRS_region_caption_eval.jsonl"
+    bench_jsonl_path = "/media/zilun/fanxiang4t/GRSM/ImageRAG_git/data/eval/test_FITRS_complex_comprehension_eval_5para_boxsubset_star.jsonl"
     base = [json.loads(q) for q in open(bench_jsonl_path, "r")]
-    output_file_path = '/media/zilun/fanxiang4t/GRSM/ImageRAG_git/data/eval/test_FITRS_complex_comprehension_eval_8para.jsonl'
+    output_file_path = "/media/zilun/fanxiang4t/GRSM/ImageRAG_git/data/eval/test_FITRS_complex_comprehension_eval_8para_boxsubset_star.jsonl"
 
     # 匹配 <rbox>
     for i, answers in enumerate(tqdm(base)):
