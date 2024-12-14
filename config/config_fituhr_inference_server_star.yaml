@@ -5,7 +5,7 @@ input_uhr_image_path:
   "/data1/zilun/grsm/ImageRAG_git/image/paper_teaser.png"
 
 input_image_dir:
-  "/data1/zilun/grsm/FIT/FIT/FIT-RS/FIT-RS_Instruction/imgv2_split_512_100_vaild"
+  "/data1/zilun/grsm/dataset/georsmllm_dataset/STAR/STAR_relationship/test/img264"
 
 patch_saving_dir:
   "patch_save_dir"
@@ -75,10 +75,10 @@ vector_database:
       "/media/zilun/fanxiang4t/GRSM/IRAG/imageRAG/codebase/vector_database/mm_vector_database"
 
 question_file_path:
-  "/data1/zilun/grsm/ImageRAG_git/data/eval/test_FITRS_complex_comprehension_eval.jsonl"
+  "/data1/zilun/grsm/ImageRAG_git/data/eval/test_FITRS_complex_comprehension_eval_5para_boxsubset_star.jsonl"
 
 answers_file_path:
-  "/data1/zilun/grsm/ImageRAG_git/data/eval/test_FITRS_complex_comprehension_eval_answer.jsonl"
+  "/data1/zilun/grsm/ImageRAG_git/data/eval/test_FITRS_complex_comprehension_eval_5para_boxsubset_star_answer.jsonl"
 
 batch_size:
   1
