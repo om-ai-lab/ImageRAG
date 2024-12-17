@@ -1,7 +1,8 @@
 python -m sglang.launch_server \
-    --model-path /media/zilun/wd-161/hf_download/Llama-3.2-3B-Instruct \
+    --model-path /media/zilun/wd-161/hf_download/Qwen2-1.5B-Instruct \
     --host 0.0.0.0 \
-    --port 30000 \
+    --port $1 \
+    --mem-fraction-static $2 \
     --tensor-parallel-size 1 \
     --data-parallel-size 1 \
     --chunked-prefill-size 4096 \
