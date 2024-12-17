@@ -613,12 +613,12 @@ def evaluation_metrics_ComplexCompre(data_path):
     ######## Output Results #######
     iou_thr = 0.25
     print(f"=======iou thr: {iou_thr}========")
-    ### Task1
-    # convert format
-    det_task_1, gt_task_1 = convert_list_to_rboxeval(det_results_task1, gt_annotations_task1)
-    # eval map
-    mean_ap_1, result_1 = eval_rbbox_map(det_task_1, gt_task_1, iou_thr=iou_thr)
-    print(f"Task-Object Detection mean ap: {mean_ap_1}")
+    # ### Task1
+    # # convert format
+    # det_task_1, gt_task_1 = convert_list_to_rboxeval(det_results_task1, gt_annotations_task1)
+    # # eval map
+    # mean_ap_1, result_1 = eval_rbbox_map(det_task_1, gt_task_1, iou_thr=iou_thr)
+    # print(f"Task-Object Detection mean ap: {mean_ap_1}")
     ## Task 2
     # 新方式
     precision_task2, recall_task2, f1_task2 = calculate_relationships_PRF1(tp_task2, fp_task2, fn_task2)
@@ -638,15 +638,15 @@ def evaluation_metrics_ComplexCompre(data_path):
     mean_ap_4, result_4 = eval_rbbox_map(det_task_4, gt_task_4, iou_thr=iou_thr)
     print(f"Task-Object Reasoning mean ap: {mean_ap_4}")
 
-    ### Task 5
-    print("Task-Region-level SGG result:")
-    do_vg_evaluation(gt_inputs_task5, predictions_task5, iou_thres=[iou_thr])
-    ## Task 6
-    print("Task-Image-level SGG result:")
-    do_vg_evaluation(gt_inputs_task6, predictions_task6, iou_thres=[iou_thr])
-    det_task_6, gt_task_6 = convert_list_to_rboxeval(det_results_task6, gt_annotations_task6)
-    mean_ap_6, _ = eval_rbbox_map(det_task_6, gt_task_6, iou_thr=iou_thr)
-    print(f"Task-Image-level SGG mean ap: {mean_ap_6}")
+    # ### Task 5
+    # print("Task-Region-level SGG result:")
+    # do_vg_evaluation(gt_inputs_task5, predictions_task5, iou_thres=[iou_thr])
+    # ## Task 6
+    # print("Task-Image-level SGG result:")
+    # do_vg_evaluation(gt_inputs_task6, predictions_task6, iou_thres=[iou_thr])
+    # det_task_6, gt_task_6 = convert_list_to_rboxeval(det_results_task6, gt_annotations_task6)
+    # mean_ap_6, _ = eval_rbbox_map(det_task_6, gt_task_6, iou_thr=iou_thr)
+    # print(f"Task-Image-level SGG mean ap: {mean_ap_6}")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()

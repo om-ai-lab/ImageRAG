@@ -341,3 +341,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+    # answer_file = "/data1/zilun/grsm/ImageRAG_git/data/eval/test_FITRS_complex_comprehension_eval_8para_boxsubset_star_answer.jsonl"
+    # evaluation_metrics_ComplexCompre(answer_file)
