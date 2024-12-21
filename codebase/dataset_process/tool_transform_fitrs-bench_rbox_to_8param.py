@@ -35,9 +35,9 @@ def obb2poly_np_oc_2rad(rbboxes):
 
 
 def main():
-    bench_jsonl_path = "/media/zilun/fanxiang4t/GRSM/ImageRAG_git/data/eval/test_FITRS_complex_comprehension_eval_5para_boxsubset_star.jsonl"
+    bench_jsonl_path = "/media/zilun/fanxiang4t/GRSM/ImageRAG_git/data/eval/test_FITRS_complex_comprehension_eval.jsonl"
     base = [json.loads(q) for q in open(bench_jsonl_path, "r")]
-    output_file_path = "/media/zilun/fanxiang4t/GRSM/ImageRAG_git/data/eval/test_FITRS_complex_comprehension_eval_8para_boxsubset_star.jsonl"
+    output_file_path = "/media/zilun/fanxiang4t/GRSM/ImageRAG_git/data/eval/test_FITRS_complex_comprehension_eval_8para.jsonl"
 
     # 匹配 <rbox>
     for i, answers in enumerate(tqdm(base)):
@@ -63,9 +63,8 @@ def main():
                 rbox = np.array(numbers_str, dtype=float)
                 polys = obb2poly_np_oc_2rad(rbox)[0]
                 x1_, y1_, x2_, y2_, x3_, y3_, x4_, y4_ = polys
-                rbox_str = "{<%.2f,%.2f><%.2f,%.2f><%.2f,%.2f><%.2f,%.2f>)}" % (
+                rbox_str = "{<%.2f,%.2f><%.2f,%.2f><%.2f,%.2f><%.2f,%.2f>}" % (
                 x1_, y1_, x2_, y2_, x3_, y3_, x4_, y4_)
-
                 todo_str = todo_str.replace(f'{{{match}}}', rbox_str)
             process_str[j] = todo_str
 

@@ -172,6 +172,7 @@ def get_cls_results(det_results, annotations, class_id):
 
         else:
             cls_gts_ignore.append(torch.zeros((0, 5), dtype=torch.float64))
+            # cls_gts_ignore.append(torch.zeros((0, 8), dtype=torch.float64))
 
     return cls_dets, cls_gts, cls_gts_ignore
 

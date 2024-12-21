@@ -363,6 +363,8 @@ def fituhr_inference_internvl(config):
     return answers_file
 
 
+
+
 def main():
     pl.seed_everything(2024)
 
@@ -510,7 +512,7 @@ def main():
 
 def eval_ComplexCompre(answer_file, param=None, group=None):
     if param==8 and group=="double":
-        from codebase.inference.FIT_Eval.eval_complex_comprehension_8para import evaluation_metrics_ComplexCompre
+        from codebase.inference.FIT_Eval.eval_complex_comprehension_8para_groupdouble import evaluation_metrics_ComplexCompre
         evaluation_metrics_ComplexCompre(answer_file, param=param, group=group)
     elif param==5:
         from codebase.inference.FIT_Eval.eval_complex_comprehension_5para import evaluation_metrics_ComplexCompre
@@ -520,5 +522,6 @@ def eval_ComplexCompre(answer_file, param=None, group=None):
 
 if __name__ == "__main__":
     # main()
-    answer_file = "/media/zilun/fanxiang4t/GRSM/ImageRAG_git/data/eval/test_FITRS_complex_comprehension_eval_8para_groupdouble_complete_fit_eval.jsonl"
-    eval_ComplexCompre(answer_file, param=8, group="double")
+    answer_file = "/media/zilun/fanxiang4t/GRSM/ImageRAG_git/data/eval_old/check_local_test_FITRS_complex_comprehension_eval.jsonl"
+    # answer_file = "/media/zilun/fanxiang4t/GRSM/ImageRAG_git/data/eval/test_FITRS_complex_comprehension_eval_8para_groupdouble_complete_fit_eval_test5param.jsonl"
+    eval_ComplexCompre(answer_file, param=5)

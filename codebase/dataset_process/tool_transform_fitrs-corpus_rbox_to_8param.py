@@ -60,7 +60,7 @@ def main():
                     polys = obb2poly_np_oc_2rad(rbox)[0]
                     x1_, y1_, x2_, y2_, x3_, y3_, x4_, y4_ = polys
                     # rbox_str = "[(%.2f,%.2f),(%.2f,%.2f),(%.2f,%.2f),(%.2f,%.2f)]" % (x1_, y1_, x2_, y2_, x3_, y3_, x4_, y4_)
-                    rbox_str = "{<%.2f,%.2f><%.2f,%.2f><%.2f,%.2f><%.2f,%.2f>)}" % (x1_, y1_, x2_, y2_, x3_, y3_, x4_, y4_)
+                    rbox_str = "{<%.2f,%.2f><%.2f,%.2f><%.2f,%.2f><%.2f,%.2f>}" % (x1_, y1_, x2_, y2_, x3_, y3_, x4_, y4_)
                     todo_str = todo_str.replace(f'{{{match}}}', rbox_str)
                 sentence['value'] = todo_str
 
@@ -86,7 +86,6 @@ def jsonl2json():
             for line in jsonl_file:
                 # 将每行解析为 JSON 对象并添加到数组中
                 json_array.append(json.loads(line))
-
             # 将数组转换为 JSON 格式并写入文件
             json.dump(json_array, json_file, indent=4)
 
