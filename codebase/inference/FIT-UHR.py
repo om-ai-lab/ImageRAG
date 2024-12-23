@@ -313,7 +313,7 @@ def fituhr_inference_internvl(config):
         for j in range(i, batch_end):
             item_list.append(questions[j])
             image_file = questions[j]['image']
-            image_path = os.path.join(config['input_image_dir'], image_file)
+            image_path = os.path.join(config['input_image_dir'], image_file+".png")
             # 判断问题类别,进而确定模板
             category = questions[j]['category']
             qs = questions[j]['question']
@@ -512,6 +512,9 @@ def eval_ComplexCompre(answer_file, param=None, group=None):
     if param==8 and group=="double":
         from codebase.inference.FIT_Eval.eval_complex_comprehension_8para import evaluation_metrics_ComplexCompre
         evaluation_metrics_ComplexCompre(answer_file, param=param, group=group)
+    elif param==8 and group=="single":
+        from codebase.inference.FIT_Eval.eval_complex_comprehension_8para_single import evaluation_metrics_ComplexCompre
+        evaluation_metrics_ComplexCompre(answer_file, param=param, group=group)
     elif param==5:
         from codebase.inference.FIT_Eval.eval_complex_comprehension_5para import evaluation_metrics_ComplexCompre
         evaluation_metrics_ComplexCompre(answer_file, param=param, group=group)
@@ -519,6 +522,12 @@ def eval_ComplexCompre(answer_file, param=None, group=None):
 
 
 if __name__ == "__main__":
-    # main()
-    answer_file = "/media/zilun/fanxiang4t/GRSM/ImageRAG_git/data/eval/test_FITRS_complex_comprehension_eval_8para_groupdouble_complete_fit_eval.jsonl"
-    eval_ComplexCompre(answer_file, param=8, group="double")
+    main()
+    # answer_file = "/media/zilun/fanxiang4t/GRSM/ImageRAG_git/data/eval/test_FITRS_complex_comprehension_eval_8para_groupdouble_complete_fit_eval.jsonl"
+    # eval_ComplexCompre(answer_file, param=8, group="double")
+
+    # answer_file = "/media/zilun/fanxiang4t/GRSM/ImageRAG_git/data/eval/test_FITRS_complex_comprehension_eval_8para_groupsingle_complete_fit_eval.jsonl"
+    # eval_ComplexCompre(answer_file, param=8, group="single")
+
+    # answer_file = "/media/zilun/fanxiang4t/GRSM/ImageRAG_git/data/eval/test_FITRS_complex_comprehension_eval_5para_complete_fit_eval.jsonl"
+    # eval_ComplexCompre(answer_file, param=5)
