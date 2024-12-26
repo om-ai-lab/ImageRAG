@@ -19,7 +19,7 @@ label_id = ['airplane', 'boat', 'taxiway', 'boarding_bridge', 'tank', 'ship', 'c
             'truck_parking', 'chimney', 'vapor', 'coal_yard', 'genset', 'smoke',
             'gas_station', 'lattice_tower', 'substation', 'containment_vessel', 'flood_dam', 'ship_lock', 'gravity_dam',
             'arch_dam', 'cement_concrete_pavement', 'toll_gate', 'tower_crane', 'engineering_vehicle', 'unfinished_building', 'foundation_pit',
-            'wind_mill', 'intersection', 'roundabout', 'ground_track_field', 'soccer_ball_field', 'basketball_court', 'tennis_court', 'baseball_diamond', 'stadium']
+            'wind_mill', 'intersection', 'roundabout', 'ground_track_field', 'soccer_ball_field', 'basketball_court', 'tennis_court', 'baseball_diamond', 'stadium', 'null']
 
 # ## all relationships
 relations = ['over', 'not co-storage with', 'connect', 'parallelly parked on', 'intersect', 'co-storage with', 'converge','parallelly docked at', 'adjacent', 'within safe distance of', 'through', 'approach', 'away from', 'randomly parked on', 'run along', 'isolatedly parked on', 'around', 'randomly docked at', 'drive off',
@@ -75,7 +75,7 @@ def filter_rbox(rbox):
         _, _, w, h, _, _ = rbox
     else: # 长度不对
         return False
-    if w < 2 or h < 2:
+    if w < 0 or h < 0:
         return False
     # elif w < 10 or h <10:
     #     rbox[2] = rbox[2]*10
@@ -217,7 +217,11 @@ def parse_single_triplet(triplet_str):
 
 def parse_multi_catgory_rbox(input_string, add_score = False):
     # 提取所有的目标类别和对应的rbox
-    pattern = r'<ref>(.*?)</ref><rbox>\((.*?)\)</rbox>'
+    # pattern = r'<ref>(.*?)</ref><rbox>\((.*?)\)</rbox>'
+    if add_score:
+        pattern = r'\b(\w+)\s*<rbox>\((.*?)\)</rbox>'
+    else:
+        pattern = r'<ref>(.*?)</ref><rbox>\((.*?)\)</rbox>'
     matches = re.findall(pattern, input_string)
     categories = []
     rboxes = []
@@ -256,7 +260,7 @@ def parse_multi_rbox_nocatgory(input_string, add_score = False):
     rboxes = []
     for match in matches:
         # 提取目标类别，并转换为对应的label_id
-        category_id = 1 # 默认值
+        category_id = -1 # 默认值
         categories.append(category_id)
         # 提取rbox，并转换为numpy数组
         rbox = extract_rbox_from_str(match)

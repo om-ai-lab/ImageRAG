@@ -40,7 +40,7 @@ from geochat.mm_utils import tokenizer_image_token, KeywordsStoppingCriteria
 Image.MAX_IMAGE_PIXELS = None
 
 # export PYTHONPATH=$PYTHONPATH:/data1/zilun/grsm/ImageRAG_git
-
+# export PYTHONPATH=$PYTHONPATH:/media/zilun/fanxiang4t/GRSM/ImageRAG_git
 
 def obb2poly_np_oc(rbboxes):
     """Convert oriented bounding boxes to polygons.
@@ -192,7 +192,6 @@ def fituhr_inference_skysense(config):
             }) + "\n")
             count = count + 1
             ans_file.flush()
-    eval_cc(answers_file)
 
 
 def fituhr_inference_internvl(config):
@@ -266,10 +265,11 @@ def fituhr_inference_internvl(config):
             processed_images.append(thumbnail_img)
         return processed_images
 
-    def load_image(image_file, input_size=448, max_num=12):
+    def load_image(image_file, input_size=512, max_num=12):
         image = Image.open(image_file).convert('RGB')
         transform = build_transform(input_size=input_size)
-        images = dynamic_preprocess(image, image_size=input_size, use_thumbnail=True, max_num=max_num)
+        # images = dynamic_preprocess(image, image_size=input_size, use_thumbnail=True, max_num=max_num)
+        images = [image]
         pixel_values = [transform(image) for image in images]
         pixel_values = torch.stack(pixel_values)
         return pixel_values
@@ -313,7 +313,7 @@ def fituhr_inference_internvl(config):
         for j in range(i, batch_end):
             item_list.append(questions[j])
             image_file = questions[j]['image']
-            image_path = os.path.join(config['input_image_dir'], image_file+".png")
+            image_path = os.path.join(config['input_image_dir'], image_file)
             # 判断问题类别,进而确定模板
             category = questions[j]['category']
             qs = questions[j]['question']
@@ -332,7 +332,7 @@ def fituhr_inference_internvl(config):
                         qs = qs.replace(numbers_str, region_str)
 
             # batch inference, single image per sample (单图批处理)
-            pixel_values = load_image(image_path, max_num=12).to(torch.bfloat16).cuda()
+            pixel_values = load_image(image_path).to(torch.bfloat16).cuda()
             image_folder.append(pixel_values)
             num_patches_list.append(pixel_values.size(0))
             question_list.append(qs)
@@ -510,7 +510,7 @@ def main():
 
 def eval_ComplexCompre(answer_file, param=None, group=None):
     if param==8 and group=="double":
-        from codebase.inference.FIT_Eval.eval_complex_comprehension_8para import evaluation_metrics_ComplexCompre
+        from codebase.inference.FIT_Eval.eval_complex_comprehension_8para_double import evaluation_metrics_ComplexCompre
         evaluation_metrics_ComplexCompre(answer_file, param=param, group=group)
     elif param==8 and group=="single":
         from codebase.inference.FIT_Eval.eval_complex_comprehension_8para_single import evaluation_metrics_ComplexCompre
@@ -522,12 +522,23 @@ def eval_ComplexCompre(answer_file, param=None, group=None):
 
 
 if __name__ == "__main__":
-    main()
+    # main()
+
     # answer_file = "/media/zilun/fanxiang4t/GRSM/ImageRAG_git/data/eval/test_FITRS_complex_comprehension_eval_8para_groupdouble_complete_fit_eval.jsonl"
     # eval_ComplexCompre(answer_file, param=8, group="double")
 
     # answer_file = "/media/zilun/fanxiang4t/GRSM/ImageRAG_git/data/eval/test_FITRS_complex_comprehension_eval_8para_groupsingle_complete_fit_eval.jsonl"
     # eval_ComplexCompre(answer_file, param=8, group="single")
 
+    # answer_file = "/media/zilun/fanxiang4t/GRSM/ov/inference/rsvqa/result/skysensegpt-fullft-1e6/FITRS_complex_comprehension_eval_skysensegpt-fullft-1e6.jsonl"
     # answer_file = "/media/zilun/fanxiang4t/GRSM/ImageRAG_git/data/eval/test_FITRS_complex_comprehension_eval_5para_complete_fit_eval.jsonl"
     # eval_ComplexCompre(answer_file, param=5)
+
+    # answer_file = "/media/zilun/fanxiang4t/GRSM/ImageRAG_git/data/eval/test_FITRS_complex_comprehension_eval_5para_complete_star_eval.jsonl"
+    # eval_ComplexCompre(answer_file, param=5)
+
+    # answer_file = "/media/zilun/fanxiang4t/GRSM/ImageRAG_git/data/eval/test_FITRS_complex_comprehension_eval_5para_complete_fit_4B_eval.jsonl"
+    # eval_ComplexCompre(answer_file, param=5)
+
+    answer_file = "/media/zilun/fanxiang4t/GRSM/ImageRAG_git/data/eval/test_FITRS_complex_comprehension_eval_5para_complete_fit_8B_nodynamic_eval.jsonl"
+    eval_ComplexCompre(answer_file, param=5)

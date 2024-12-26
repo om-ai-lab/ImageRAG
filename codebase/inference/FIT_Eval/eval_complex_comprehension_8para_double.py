@@ -21,7 +21,7 @@ label_id = ['airplane', 'boat', 'taxiway', 'boarding_bridge', 'tank', 'ship', 'c
             'arch_dam', 'cement_concrete_pavement', 'toll_gate', 'tower_crane', 'engineering_vehicle',
             'unfinished_building', 'foundation_pit',
             'wind_mill', 'intersection', 'roundabout', 'ground_track_field', 'soccer_ball_field', 'basketball_court',
-            'tennis_court', 'baseball_diamond', 'stadium']
+            'tennis_court', 'baseball_diamond', 'stadium', 'null']
 
 # ## all relationships
 relations = ['over', 'not co-storage with', 'connect', 'parallelly parked on', 'intersect', 'co-storage with',
@@ -237,7 +237,13 @@ def parse_single_triplet(triplet_str):
 
 def parse_multi_catgory_rbox(input_string, add_score=False):
     # 提取所有的目标类别和对应的rbox
-    pattern = r'<ref>(.*?)</ref><rbox>\((.*?)\)</rbox>'
+    # pattern = r'<ref>(.*?)</ref><rbox>\((.*?)\)</rbox>'
+
+    if add_score:
+        pattern = r'\b(\w+)\s*<rbox>\((.*?)\)</rbox>'
+    else:
+        pattern = r'<ref>(.*?)</ref><rbox>\((.*?)\)</rbox>'
+
     matches = re.findall(pattern, input_string)
     categories = []
     rboxes = []
@@ -277,7 +283,7 @@ def parse_multi_rbox_nocatgory(input_string, add_score=False):
     rboxes = []
     for match in matches:
         # 提取目标类别，并转换为对应的label_id
-        category_id = 1  # 默认值
+        category_id = -1  # 默认值
         categories.append(category_id)
         # 提取rbox，并转换为numpy数组
         rbox = extract_rbox_from_str(match)
