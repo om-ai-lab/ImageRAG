@@ -1,17 +1,20 @@
 task_name:
   "fit_uhr"
 
+work_dir:
+  "/media/zilun/fanxiang4t/GRSM/ImageRAG_git"
+
 input_uhr_image_path:
   "/media/zilun/fanxiang4t/GRSM/IRAG/image/paper_teaser.png"
 
 input_image_dir:
   "/media/zilun/fanxiang4t/GRSM/evaluation_dataset/VQA_VG/FIT/FIT-RS/FIT-RS_Instruction/FIT-RS_Img/imgv2_split_512_100_vaild"
-#  "/media/zilun/wd-161/datasets/STAR/test/img264"
+
 patch_saving_dir:
   "patch_save_dir"
 
 model_input_image_size:
-  336
+  448
 
 fast_path_T:
   70
@@ -46,11 +49,9 @@ text_expansion_model:
 
 fast_vlm_model:
     model_name:
-      "skysensegpt"
+      "internvl"
     model_path:
-#      "/media/zilun/fanxiang4t/GRSM/SkySenseGPT/result/skysensegpt-fullft-1e6"
-#      "/media/zilun/fanxiang4t/GRSM/ImageRAG_git/checkpoint/InternVL2_5-8B"
-      "/media/zilun/fanxiang4t/GRSM/ImageRAG_git/checkpoint/InternVL2_5-8B_finetune_full_5param_nodynamic"
+      "/media/zilun/fanxiang4t/GRSM/ImageRAG_git/checkpoint/InternVL2_5-8B_finetune_full_5param"
     num_chunks:
       1
     chunk_idx:
@@ -66,8 +67,7 @@ llmvqa_model:
 
 vector_database:
     meta_pkl_path:
-        "/media/zilun/mx500/ImageRAG_databas'
-        ]e/cropped_img/meta_df.pkl"
+        "/media/zilun/mx500/ImageRAG_database/cropped_img/meta_df.pkl"
     img_dir:
       "/media/zilun/mx500/ImageRAG_database/cropped_img"
     text_vector_database_dir:
@@ -78,10 +78,10 @@ vector_database:
       "/media/zilun/fanxiang4t/GRSM/IRAG/imageRAG/codebase/vector_database/mm_vector_database"
 
 question_file_path:
-  "/media/zilun/fanxiang4t/GRSM/ImageRAG_git/data/eval/test_FITRS_complex_comprehension_eval_5para_complete_fit.jsonl"
+  "/media/zilun/fanxiang4t/GRSM/ImageRAG_git/data/eval/test_FITRS_complex_comprehension_eval_5para_complete_fit_0-1000_obb2.jsonl"
 
 answers_file_path:
-  "/media/zilun/fanxiang4t/GRSM/ImageRAG_git/data/eval/test_FITRS_complex_comprehension_eval_5para_complete_fit_8B_nodynamic_eval.jsonl"
+  "/media/zilun/fanxiang4t/GRSM/ImageRAG_git/data/eval/test_FITRS_complex_comprehension_eval_5para_complete_fit_8B_nodynamic448_0-1000_obb2_eval.jsonl"
 
 batch_size:
   1

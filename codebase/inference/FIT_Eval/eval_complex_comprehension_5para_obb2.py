@@ -10,6 +10,7 @@ from codebase.inference.FIT_Eval.sgg_eval.sgg_eval import Compute_Pred_Matches
 from codebase.inference.FIT_Eval.sgg_eval.vg_eval import do_vg_evaluation
 import numpy as np
 from codebase.inference.FIT_Eval.eval_map_5para import eval_rbbox_map
+import math
 
 
 # ## all categories
@@ -218,10 +219,13 @@ def parse_single_triplet(triplet_str):
 def parse_multi_catgory_rbox(input_string, add_score = False):
     # 提取所有的目标类别和对应的rbox
     # pattern = r'<ref>(.*?)</ref><rbox>\((.*?)\)</rbox>'
-    if add_score:
-        pattern = r'\b(\w+)\s*<rbox>\((.*?)\)</rbox>'
-    else:
-        pattern = r'<ref>(.*?)</ref><rbox>\((.*?)\)</rbox>'
+    # if add_score:
+    #     pattern = r'\b(\w+)\s*<rbox>\((.*?)\)</rbox>'
+    # else:
+    #     pattern = r'<ref>(.*?)</ref><rbox>\((.*?)\)</rbox>'
+
+    pattern = r'<ref>(.*?)</ref><rbox>\((.*?)\)</rbox>'
+
     matches = re.findall(pattern, input_string)
     categories = []
     rboxes = []
@@ -454,6 +458,52 @@ def extract_triplets_from_str_task6(str, add_score = False):
     return triplets, bboxes, det_results_per_image
 
 
+def obb2toobb1(obb2):
+    p1x, p1y, p2x, p2y, degree = obb2
+    cx = (p1x + p2x) / 2
+    cy = (p1y + p2y) / 2
+    w = p2x - p1x
+    h = p2y - p1y
+    return cx, cy, w, h, degree
+
+
+def replace_5paraobb2_to_5paraobb1(input_data):
+    """
+    8 param to 5 param
+    """
+    question = input_data['answer']
+    gt = input_data['ground_truth']
+    process_str = [question, gt]
+    # 3) 进行替换,5参数->8参数
+    for j, todo_str in enumerate(process_str):
+        # 使用正则表达式查找所有 <rbox> 标签中的内容
+        # pattern = r'\{(<[^>]+>[^}]+)\}'
+        pattern = r'\{(<.*?>)\}'
+        # pattern = r'<(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)>'
+        # pattern = r'<rbox>\((.*?)\)</rbox>'
+        # 使用正则表达式找到所有的矩形框
+        matches = re.findall(pattern, todo_str)
+        for match in matches:
+            # 在每个矩形框中，找到所有的数字
+            numbers_str = re.findall(r'<(.*?)>', match)
+            # 将数字转换为浮点数，并将角度转换为弧度
+            rbox = np.array(numbers_str, dtype=np.float32).reshape(-1)
+            polys = obb2toobb1(rbox)
+            cx_, cy_, w_, h_, a_degrees = polys
+            rbox_str = "<%.2f><%.2f><%.2f><%.2f>|<%d>" % (cx_, cy_, w_, h_, a_degrees)
+            todo_str = todo_str.replace(match, rbox_str)
+            if " <ref> " in todo_str:
+                todo_str = todo_str.replace(" <ref> ", "<ref>")
+            if " </ref> " in todo_str:
+                todo_str = todo_str.replace(" </ref> ", "</ref>")
+        process_str[j] = todo_str
+    question, gt = process_str
+    input_data['answer'] = question
+    input_data['ground_truth'] = gt
+
+    return input_data
+
+
 def evaluation_metrics_ComplexCompre(data_path, param=8, group="double"):
 
     base = [json.loads(q) for q in open(data_path, "r")]
@@ -489,10 +539,11 @@ def evaluation_metrics_ComplexCompre(data_path, param=8, group="double"):
     # for answers in tqdm(base):
     for i, answers in enumerate(tqdm(base)):
         # image_id = answers['image_id']
+        answers = replace_5paraobb2_to_5paraobb1(answers)
         gt = answers['ground_truth']
         answer = answers['answer']
-        if gt  == 'There is 1 car in total. All coordinates: <rbox>({<40.60,35.53><42.23,39.02><35.38,42.21><33.75,38.72>)})</rbox>.':
-            print()
+        # if gt  == 'There is 1 car in total. All coordinates: <rbox>({<40.60,35.53><42.23,39.02><35.38,42.21><33.75,38.72>)})</rbox>.':
+        #     print()
         task_category = answers['category']
         
         if "due to the context length" in gt or "..." in gt:  # NOTE: too long to evaluate, "..."则是出现在grounding任务中
@@ -615,7 +666,6 @@ def evaluation_metrics_ComplexCompre(data_path, param=8, group="double"):
             ## 目标检测评估
             gt_annotations_task6[i].extend(gt_annotations_per_image6)
             det_results_task6[i].extend(det_results_per_image6)
-
     ######## Output Results #######
     iou_thr = 0.25
     print(f"=======iou thr: {iou_thr}========")
