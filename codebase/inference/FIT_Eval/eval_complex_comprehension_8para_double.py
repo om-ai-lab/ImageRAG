@@ -237,13 +237,7 @@ def parse_single_triplet(triplet_str):
 
 def parse_multi_catgory_rbox(input_string, add_score=False):
     # 提取所有的目标类别和对应的rbox
-    # pattern = r'<ref>(.*?)</ref><rbox>\((.*?)\)</rbox>'
-
-    if add_score:
-        pattern = r'\b(\w+)\s*<rbox>\((.*?)\)</rbox>'
-    else:
-        pattern = r'<ref>(.*?)</ref><rbox>\((.*?)\)</rbox>'
-
+    pattern = r'<ref>(.*?)</ref><rbox>\((.*?)\)</rbox>'
     matches = re.findall(pattern, input_string)
     categories = []
     rboxes = []
@@ -616,10 +610,10 @@ def replace_8para_groupdouble_to_5para(input_data):
         # 使用正则表达式找到所有的矩形框
         matches = re.findall(pattern, todo_str)
         for match in matches:
+            print(todo_str)
             # 在每个矩形框中，找到所有的数字
             numbers_str = re.findall(r'<(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)>', match)
             print(numbers_str)
-            print(todo_str)
             # 将数字转换为浮点数，并将角度转换为弧度
             rbox = np.array(numbers_str, dtype=np.float32).reshape(-1)
             polys = poly2obb_np_oc(rbox)

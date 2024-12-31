@@ -237,11 +237,7 @@ def parse_single_triplet(triplet_str):
 
 def parse_multi_catgory_rbox(input_string, add_score=False):
     # 提取所有的目标类别和对应的rbox
-    # pattern = r'<ref>(.*?)</ref><rbox>\((.*?)\)</rbox>'
-    if add_score:
-        pattern = r'\b(\w+)\s*<rbox>\((.*?)\)</rbox>'
-    else:
-        pattern = r'<ref>(.*?)</ref><rbox>\((.*?)\)</rbox>'
+    pattern = r'<ref>(.*?)</ref><rbox>\((.*?)\)</rbox>'
     matches = re.findall(pattern, input_string)
     categories = []
     rboxes = []

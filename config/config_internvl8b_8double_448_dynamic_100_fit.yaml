@@ -66,7 +66,7 @@ fast_vlm_model:
 
 llmvqa_model:
   model_path:
-      "/media/zilun/fanxiang4t/GRSM/IRAG/imageRAG/ckpt/ckpt_llava-onevision-qwen2-0.5b-ov"
+      "/data1/zilun/grsm/ImageRAG_git/checkpoint/InternVL2_5-8B_finetune_full_8param_groupdouble"
 
 vector_database:
     meta_pkl_path:
