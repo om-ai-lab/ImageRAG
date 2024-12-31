@@ -35,9 +35,9 @@ def obb2poly_np_oc_2rad(rbboxes):
 
 
 def main():
-    bench_jsonl_path = "/media/zilun/fanxiang4t/GRSM/ImageRAG_git/data/eval/test_FITRS_complex_comprehension_eval_5para_complete_fit.jsonl"
+    bench_jsonl_path = "/data1/zilun/grsm/ImageRAG_git/data/eval/test_FITRS_complex_comprehension_eval_5para_complete_fit.jsonl"
     base = [json.loads(q) for q in open(bench_jsonl_path, "r")]
-    output_file_path = "/media/zilun/fanxiang4t/GRSM/ImageRAG_git/data/eval/test_FITRS_complex_comprehension_eval_5para_0-1000.jsonl"
+    output_file_path = "/data1/zilun/grsm/ImageRAG_git/data/eval/test_FITRS_complex_comprehension_eval_5para_complete_fit_01000.jsonl"
 
     # 匹配 <rbox>
     for i, answers in enumerate(tqdm(base)):
@@ -59,7 +59,7 @@ def main():
                 # 在每个矩形框中，找到所有的数字
                 numbers_str = re.findall(r'<(.*?)>', match)
                 rbox = np.array(numbers_str, dtype=np.float32)
-                rbox_0_1000 = rbox[:-1] / 100 * 512 / 512 * 1000
+                rbox_0_1000 = rbox[:-1] * 10
                 xc, yc, w, h = rbox_0_1000
                 theta_degree = rbox[-1]
                 rbox_str = "{<%.2f><%.2f><%.2f><%.2f>|<%d>}" % (xc, yc, w, h, theta_degree)

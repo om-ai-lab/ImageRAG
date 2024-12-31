@@ -19,21 +19,19 @@ import math
 import regex as re
 import shortuuid
 
-from codebase.utils import (setup_vlm_model, set_up_paraphrase_model, setup_vqallm, setup_slow_text_encoder_model,
-                   calculate_similarity_matrix, extract_vlm_img_text_feat, ranking_patch_t2p, paraphrase_model_inference,
-                   text_expand_model_inference, setup_logger, meta_df2clsimg_dict, img_reduce, select_visual_cue, ranking_patch_visualcue2patch, load_yaml)
+from codebase.utils import (setup_vlm_model, set_up_paraphrase_model, setup_vqallm, setup_slow_text_encoder_model, calculate_similarity_matrix, extract_vlm_img_text_feat, ranking_patch_t2p, paraphrase_model_inference, text_expand_model_inference, setup_logger, meta_df2clsimg_dict, img_reduce, select_visual_cue, ranking_patch_visualcue2patch, load_yaml)
 from codebase.cc_algo import img_2patch, vis_patches
 from codebase.text_parser import extract_key_phrases
 from codebase.llm_template import paraphrase_template, keyword_template, text_expansion_template
 from codebase.sglang_util import get_paraphase_response, get_keyword_response, get_text_expansion_response
 
 
-from geochat.constants import IMAGE_TOKEN_INDEX, DEFAULT_IMAGE_TOKEN, DEFAULT_IM_START_TOKEN, DEFAULT_IM_END_TOKEN
-from geochat.conversation import conv_templates, SeparatorStyle
+# from geochat.constants import IMAGE_TOKEN_INDEX, DEFAULT_IMAGE_TOKEN, DEFAULT_IM_START_TOKEN, DEFAULT_IM_END_TOKEN
+# from geochat.conversation import conv_templates, SeparatorStyle
 
-from geochat.model.builder import load_pretrained_model
-# from geochat.utils import disable_torch_init
-from geochat.mm_utils import tokenizer_image_token, KeywordsStoppingCriteria
+# from geochat.model.builder import load_pretrained_model
+# # from geochat.utils import disable_torch_init
+# from geochat.mm_utils import tokenizer_image_token, KeywordsStoppingCriteria
 
 
 
@@ -270,6 +268,8 @@ def fituhr_inference_internvl(config):
         transform = build_transform(input_size=input_size)
         if use_dynamic:
             images = dynamic_preprocess(image, image_size=input_size, use_thumbnail=True, max_num=max_num)
+            print("Use Dynamic")
+
         else:
             images = [image]
         pixel_values = [transform(image) for image in images]
@@ -315,7 +315,10 @@ def fituhr_inference_internvl(config):
         for j in range(i, batch_end):
             item_list.append(questions[j])
             image_file = questions[j]['image']
-            image_path = os.path.join(config['input_image_dir'], image_file)
+            if "fit" in config['input_image_dir'].lower():
+                image_path = os.path.join(config['input_image_dir'], image_file)
+            else:
+                image_path = os.path.join(config['input_image_dir'], image_file+".png")
             # 判断问题类别,进而确定模板
             category = questions[j]['category']
             qs = questions[j]['question']
@@ -334,7 +337,7 @@ def fituhr_inference_internvl(config):
                         qs = qs.replace(numbers_str, region_str)
 
             # batch inference, single image per sample (单图批处理)
-            pixel_values = load_image(image_path, input_size=config["model_input_image_size"], max_num=6, ).to(torch.bfloat16).cuda()
+            pixel_values = load_image(image_path, input_size=config["model_input_image_size"], max_num=6, use_dynamic=config["use_dynamic"]).to(torch.bfloat16).cuda()
             image_folder.append(pixel_values)
             num_patches_list.append(pixel_values.size(0))
             question_list.append(qs)
@@ -517,10 +520,10 @@ def eval_ComplexCompre(answer_file, param=None, group=None):
     elif param==8 and group=="single":
         from codebase.inference.FIT_Eval.eval_complex_comprehension_8para_single import evaluation_metrics_ComplexCompre
         evaluation_metrics_ComplexCompre(answer_file, param=param, group=group)
-    elif param==5 and group=="single":
+    elif param==5 and group=="obb1":
         from codebase.inference.FIT_Eval.eval_complex_comprehension_5para_obb1 import evaluation_metrics_ComplexCompre
         evaluation_metrics_ComplexCompre(answer_file, param=param, group=group)
-    elif param==5 and group=="double":
+    elif param==5 and group=="obb2":
         from codebase.inference.FIT_Eval.eval_complex_comprehension_5para_obb2 import evaluation_metrics_ComplexCompre
         evaluation_metrics_ComplexCompre(answer_file, param=param, group=group)
 
@@ -534,11 +537,11 @@ if __name__ == "__main__":
     # answer_file = "/media/zilun/fanxiang4t/GRSM/ImageRAG_git/data/eval/test_FITRS_complex_comprehension_eval_8para_groupsingle_complete_fit_eval.jsonl"
     # eval_ComplexCompre(answer_file, param=8, group="single")
 
-    # answer_file = "/media/zilun/fanxiang4t/GRSM/ImageRAG_git/data/eval/test_FITRS_complex_comprehension_eval_5para_complete_fit_8B_nodynamic448_0-1000_obb2_eval.jsonl"
-    # eval_ComplexCompre(answer_file, param=5, group="single")
+    # answer_file = "/data1/zilun/grsm/ImageRAG_git/data/eval/test_FITRS_complex_comprehension_eval_5para_complete_fit_0100_obb1_eval_5param_dynamic448_0_100_obb1.jsonl"
+    # eval_ComplexCompre(answer_file, param=5, group="obb1")
 
-    # answer_file = "/media/zilun/fanxiang4t/GRSM/ImageRAG_git/data/eval_before_refactor/test_FITRS_complex_comprehension_eval_5para_complete_fit_8B_nodynamic448_0-1000_obb2_eval.jsonl"
-    # eval_ComplexCompre(answer_file, param=5, group="double")
+    # answer_file = "/data1/zilun/grsm/ImageRAG_git/data/eval/test_FITRS_complex_comprehension_eval_5para_complete_fit_01000_obb2_eval_5param_nodynamic448_0-1000_obb2.jsonl"
+    # eval_ComplexCompre(answer_file, param=5, group="obb2")
 
     # answer_file = "/media/zilun/fanxiang4t/GRSM/ImageRAG_git/data/eval/test_FITRS_complex_comprehension_eval_5para_complete_star_eval.jsonl"
     # eval_ComplexCompre(answer_file, param=5)
@@ -548,3 +551,20 @@ if __name__ == "__main__":
 
     # answer_file = "/media/zilun/fanxiang4t/GRSM/ImageRAG_git/data/eval/test_FITRS_complex_comprehension_eval_5para_complete_fit_8B_nodynamic_eval.jsonl"
     # eval_ComplexCompre(answer_file, param=5)
+    
+    
+    # answer_file = "/data1/zilun/grsm/ImageRAG_git/data1/zilun/grsm/ImageRAG_git/checkpoint/InternVL2_5-8B_finetune_full_8param_groupsingle/data/eval/eval_FITRS_complex_comprehension_eval_5para_complete_obb1_100_448_star_inference_obb1_100_448_dynamic.jsonl"
+    # eval_ComplexCompre(answer_file, param=5, group="obb1")
+    
+    # answer_file = "/data1/zilun/grsm/ImageRAG_git/data/eval/eval_FITRS_complex_comprehension_eval_5para_complete_obb1_100_512_star_inference_obb1_100_512_nondynamic.jsonl"
+    # eval_ComplexCompre(answer_file, param=5, group="obb1")
+    
+    # answer_file = "/data1/zilun/grsm/ImageRAG_git/data/eval/eval_FITRS_complex_comprehension_eval_8para_complete_double_100_448_fit_inference_double_100_448_dynamic.jsonl"
+    # eval_ComplexCompre(answer_file, param=8, group="double")
+    
+    # answer_file = "/data1/zilun/grsm/ImageRAG_git/data/eval/eval_FITRS_complex_comprehension_eval_8para_complete_single_100_448_fit_inference_single_100_448_dynamic.jsonl"
+    # eval_ComplexCompre(answer_file, param=8, group="single")
+    
+    # answer_file = "/data1/zilun/grsm/ImageRAG_git/data/eval/test_FITRS_complex_comprehension_eval_5para_complete_fit_01000_obb2_eval_5param_nodynamic448_0-1000_obb2.jsonl"
+    # eval_ComplexCompre(answer_file, param=5, group="obb2")
+    

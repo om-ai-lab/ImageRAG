@@ -618,6 +618,8 @@ def replace_8para_groupdouble_to_5para(input_data):
         for match in matches:
             # 在每个矩形框中，找到所有的数字
             numbers_str = re.findall(r'<(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)>', match)
+            print(numbers_str)
+            print(todo_str)
             # 将数字转换为浮点数，并将角度转换为弧度
             rbox = np.array(numbers_str, dtype=np.float32).reshape(-1)
             polys = poly2obb_np_oc(rbox)
@@ -625,6 +627,10 @@ def replace_8para_groupdouble_to_5para(input_data):
             a_degrees = math.degrees(a_rad)
             rbox_str = "<%.2f><%.2f><%.2f><%.2f>|<%d>" % (cx_, cy_, w_, h_, a_degrees)
             todo_str = todo_str.replace(match, rbox_str)
+            if " <ref> " in todo_str:
+                todo_str = todo_str.replace(" <ref> ", "<ref>")
+            if " </ref> " in todo_str:
+                todo_str = todo_str.replace(" </ref> ", "</ref>")
         process_str[j] = todo_str
     question, gt = process_str
     input_data['answer'] = question

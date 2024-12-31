@@ -217,11 +217,11 @@ def parse_single_triplet(triplet_str):
 
 def parse_multi_catgory_rbox(input_string, add_score = False):
     # 提取所有的目标类别和对应的rbox
-    # pattern = r'<ref>(.*?)</ref><rbox>\((.*?)\)</rbox>'
-    if add_score:
-        pattern = r'\b(\w+)\s*<rbox>\((.*?)\)</rbox>'
-    else:
-        pattern = r'<ref>(.*?)</ref><rbox>\((.*?)\)</rbox>'
+    pattern = r'<ref>(.*?)</ref><rbox>\((.*?)\)</rbox>'
+    # if add_score:
+    #     pattern = r'\b(\w+)\s*<rbox>\((.*?)\)</rbox>'
+    # else:
+    #     pattern = r'<ref>(.*?)</ref><rbox>\((.*?)\)</rbox>'
     matches = re.findall(pattern, input_string)
     categories = []
     rboxes = []
@@ -454,6 +454,33 @@ def extract_triplets_from_str_task6(str, add_score = False):
     return triplets, bboxes, det_results_per_image
 
 
+
+def replace_ref_space(input_data):
+    """
+    8 param to 5 param
+    """
+    question = input_data['answer']
+    gt = input_data['ground_truth']
+    process_str = [question, gt]
+    # 3) 进行替换,5参数->8参数
+    for j, todo_str in enumerate(process_str):
+        # 使用正则表达式查找所有 <rbox> 标签中的内容
+        pattern = r'\{(<.*?>)\}'
+        # 使用正则表达式找到所有的矩形框
+        matches = re.findall(pattern, todo_str)
+        for match in matches:
+            if " <ref> " in todo_str:
+                todo_str = todo_str.replace(" <ref> ", "<ref>")
+            if " </ref> " in todo_str:
+                todo_str = todo_str.replace(" </ref> ", "</ref>")
+        process_str[j] = todo_str
+    question, gt = process_str
+    input_data['answer'] = question
+    input_data['ground_truth'] = gt
+
+    return input_data
+
+
 def evaluation_metrics_ComplexCompre(data_path, param=8, group="double"):
 
     base = [json.loads(q) for q in open(data_path, "r")]
@@ -489,6 +516,7 @@ def evaluation_metrics_ComplexCompre(data_path, param=8, group="double"):
     # for answers in tqdm(base):
     for i, answers in enumerate(tqdm(base)):
         # image_id = answers['image_id']
+        answers = replace_ref_space(answers)
         gt = answers['ground_truth']
         answer = answers['answer']
         task_category = answers['category']

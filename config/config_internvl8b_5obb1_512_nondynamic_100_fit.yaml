@@ -14,10 +14,10 @@ patch_saving_dir:
   "patch_save_dir"
 
 model_input_image_size:
-  448
+  512
 
 use_dynamic:
-  1
+  0
 
 fast_path_T:
   70
@@ -54,7 +54,7 @@ fast_vlm_model:
     model_name:
       "internvl"
     model_path:
-      "/data1/zilun/grsm/ImageRAG_git/checkpoint/InternVL2_5-8B_finetune_full_5param_dynamic448_0_1000_obb1"
+      "/data1/zilun/grsm/ImageRAG_git/checkpoint/InternVL2_5-8B_finetune_full_5param_nodynamic512_0-100_obb1"
     num_chunks:
       1
     chunk_idx:
@@ -81,13 +81,13 @@ vector_database:
       "/media/zilun/fanxiang4t/GRSM/IRAG/imageRAG/codebase/vector_database/mm_vector_database"
 
 question_file_path:
-  "/data1/zilun/grsm/ImageRAG_git/data/eval/test_FITRS_complex_comprehension_eval_5para_complete_fit_01000.jsonl"
+  "/data1/zilun/grsm/ImageRAG_git/data/eval/test_FITRS_complex_comprehension_eval_5para_complete_fit.jsonl"
 
 answers_file_path:
-  "/data1/zilun/grsm/ImageRAG_git/data/eval/test_FITRS_complex_comprehension_eval_5para_complete_fit_01000_obb1_eval_5param_dynamic448_0_1000_obb1.jsonl"
+  "/data1/zilun/grsm/ImageRAG_git/data/eval/test_FITRS_complex_comprehension_eval_5para_complete_fit_eval_5param_nodynamic512_0-100_obb1.jsonl"
 
 batch_size:
-  1
+  40
 
 conv_mode:
   "llava_v1"
