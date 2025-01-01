@@ -13,6 +13,45 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 import logging
 import yaml
 import pickle as pkl
+import math
+
+
+def obb2poly_np_oc(rbboxes):
+    """Convert oriented bounding boxes to polygons.
+
+    Args:
+        obbs (ndarray): [x_ctr,y_ctr,w,h,angle,score]
+
+    Returns:
+        polys (ndarray): [x0,y0,x1,y1,x2,y2,x3,y3,score]
+    """
+    x = rbboxes[0]
+    y = rbboxes[1]
+    w = rbboxes[2]
+    h = rbboxes[3]
+    a = rbboxes[4]
+    cosa = np.cos(a)
+    sina = np.sin(a)
+    wx, wy = w / 2 * cosa, w / 2 * sina
+    hx, hy = -h / 2 * sina, h / 2 * cosa
+    p1x, p1y = x - wx - hx, y - wy - hy
+    p2x, p2y = x + wx - hx, y + wy - hy
+    p3x, p3y = x + wx + hx, y + wy + hy
+    p4x, p4y = x - wx + hx, y - wy + hy
+    polys = np.stack([p1x, p1y, p2x, p2y, p3x, p3y, p4x, p4y])
+    polys = np.expand_dims(polys, axis=0)
+    return polys
+
+
+def convert_obb_to_region_str(rbox_np):
+    angle = rbox_np[-1]
+    polys = obb2poly_np_oc(rbox_np)
+    x_left = np.clip(np.min(polys[:, [0, 2, 4, 6]], axis=1), 0, None)
+    y_top = np.clip(np.min(polys[:, [1, 3, 5, 7]], axis=1), 0, None)
+    x_right = np.max(polys[:, [0, 2, 4, 6]], axis=1)
+    y_bottom = np.max(polys[:, [1, 3, 5, 7]], axis=1)
+    region_str = f"<{int(x_left[0])}><{int(y_top[0])}><{int(x_right[0])}><{int(y_bottom[0])}>|<{int(angle)}>"
+    return region_str
 
 
 def load_yaml(config_filepath):
@@ -84,8 +123,8 @@ def paraphrase_model_inference(model, tokenizer, query_text):
     response = tokenizer.batch_decode(generated_ids, skip_special_tokens=True)[0]
     return response
 
-def setup_vlm_model(model_path, device):
-    if 'clip' in model_path:
+def setup_vlm_model(model_path, fast_vlm_model_name, device):
+    if 'clip' in fast_vlm_model_name:
         model, _, img_preprocess = open_clip.create_model_and_transforms(
             model_name='ViT-L-14-336-quickgelu',
             pretrained='openai',
@@ -96,8 +135,7 @@ def setup_vlm_model(model_path, device):
         checkpoint = torch.load(model_path, map_location=device)
         msg = model.load_state_dict(checkpoint, strict=False)
         model.eval()  # model in train mode by default, impacts some models with BatchNorm or stochastic depth active
-    elif 'skysensegpt' in model_path:
-        pass
+
     return model, img_preprocess, tokenizer
 
 
@@ -106,15 +144,225 @@ def setup_slow_text_encoder_model(model_path, device):
     tokenizer = AutoTokenizer.from_pretrained(model_path)
     return model, tokenizer
 
-def setup_vqallm(llmvqa_model_path, model_input_image_size, device):
-    from vqa_llm.vaq_llm import VQA_LLM
-    import warnings
-    warnings.filterwarnings("ignore")
-    vqa_llm = VQA_LLM(
-        model_path=llmvqa_model_path,
-        device=device
-    )
-    return vqa_llm
+def setup_vqallm(llmvqa_model_path, llmvqa_model_name, model_input_image_size, device):
+    if "llava-onevision-qwen2-0.5b-ov" in llmvqa_model_name.lower():
+        from codebase.vqa_llm.vaq_llm import VQA_LLM
+        import warnings
+        warnings.filterwarnings("ignore")
+        vqa_llm = VQA_LLM(
+            model_path=llmvqa_model_path,
+            device=device
+        )
+        return vqa_llm
+
+    elif "internvl" in llmvqa_model_name.lower():
+        import torchvision.transforms as T
+        from torchvision.transforms.functional import InterpolationMode
+        from transformers import AutoModel, AutoTokenizer
+
+        IMAGENET_MEAN = (0.485, 0.456, 0.406)
+        IMAGENET_STD = (0.229, 0.224, 0.225)
+
+        def build_transform(input_size):
+            MEAN, STD = IMAGENET_MEAN, IMAGENET_STD
+            transform = T.Compose([
+                T.Lambda(lambda img: img.convert('RGB') if img.mode != 'RGB' else img),
+                T.Resize((input_size, input_size), interpolation=InterpolationMode.BICUBIC),
+                T.ToTensor(),
+                T.Normalize(mean=MEAN, std=STD)
+            ])
+            return transform
+
+        def find_closest_aspect_ratio(aspect_ratio, target_ratios, width, height, image_size):
+            best_ratio_diff = float('inf')
+            best_ratio = (1, 1)
+            area = width * height
+            for ratio in target_ratios:
+                target_aspect_ratio = ratio[0] / ratio[1]
+                ratio_diff = abs(aspect_ratio - target_aspect_ratio)
+                if ratio_diff < best_ratio_diff:
+                    best_ratio_diff = ratio_diff
+                    best_ratio = ratio
+                elif ratio_diff == best_ratio_diff:
+                    if area > 0.5 * image_size * image_size * ratio[0] * ratio[1]:
+                        best_ratio = ratio
+            return best_ratio
+
+        def dynamic_preprocess(image, min_num=1, max_num=12, image_size=448, use_thumbnail=False):
+            orig_width, orig_height = image.size
+            aspect_ratio = orig_width / orig_height
+
+            # calculate the existing image aspect ratio
+            target_ratios = set(
+                (i, j) for n in range(min_num, max_num + 1) for i in range(1, n + 1) for j in range(1, n + 1) if
+                i * j <= max_num and i * j >= min_num)
+            target_ratios = sorted(target_ratios, key=lambda x: x[0] * x[1])
+
+            # find the closest aspect ratio to the target
+            target_aspect_ratio = find_closest_aspect_ratio(
+                aspect_ratio, target_ratios, orig_width, orig_height, image_size)
+
+            # calculate the target width and height
+            target_width = image_size * target_aspect_ratio[0]
+            target_height = image_size * target_aspect_ratio[1]
+            blocks = target_aspect_ratio[0] * target_aspect_ratio[1]
+
+            # resize the image
+            resized_img = image.resize((target_width, target_height))
+            processed_images = []
+            for i in range(blocks):
+                box = (
+                    (i % (target_width // image_size)) * image_size,
+                    (i // (target_width // image_size)) * image_size,
+                    ((i % (target_width // image_size)) + 1) * image_size,
+                    ((i // (target_width // image_size)) + 1) * image_size
+                )
+                # split the image
+                split_img = resized_img.crop(box)
+                processed_images.append(split_img)
+            assert len(processed_images) == blocks
+            if use_thumbnail and len(processed_images) != 1:
+                thumbnail_img = image.resize((image_size, image_size))
+                processed_images.append(thumbnail_img)
+            return processed_images
+
+        def load_image(image_file, input_size=448, max_num=12, use_dynamic=True):
+            image = Image.open(image_file).convert('RGB')
+            transform = build_transform(input_size=input_size)
+            if use_dynamic:
+                images = dynamic_preprocess(image, image_size=input_size, use_thumbnail=True, max_num=max_num)
+                print("Use Dynamic")
+            else:
+                images = [image]
+            pixel_values = [transform(image) for image in images]
+            pixel_values = torch.stack(pixel_values)
+            return pixel_values
+
+        # init model
+        model_path = llmvqa_model_path
+
+        # If you have an 80G A100 GPU, you can put the entire model on a single GPU.
+        # Otherwise, you need to load a model using multiple GPUs, please refer to the `Multiple GPUs` section.
+        model = AutoModel.from_pretrained(
+            model_path,
+            torch_dtype=torch.bfloat16,
+            low_cpu_mem_usage=True,
+            trust_remote_code=True
+        ).eval().cuda()
+        tokenizer = AutoTokenizer.from_pretrained(
+            model_path,
+            trust_remote_code=True,
+            use_fast=False
+        )
+        generation_config = dict(
+            max_new_tokens=1024,
+            do_sample=False
+        )
+        return model, tokenizer, generation_config, load_image
+
+
+def split_list(lst, n):
+    """Split a list into n (roughly) equal-sized chunks"""
+    chunk_size = math.ceil(len(lst) / n)  # integer division
+    return [lst[i:i+chunk_size] for i in range(0, len(lst), chunk_size)]
+
+
+def get_chunk(lst, n, k):
+    chunks = split_list(lst, n)
+    return chunks[k]
+
+
+def obb2minhbb(rbboxes):
+    """Convert oriented bounding boxes to polygons.
+
+    Args:
+        obbs (ndarray): [x_ctr,y_ctr,w,h,angle,score]
+
+    Returns:
+        polys (ndarray): [x_ctr,y_ctr,w,h]
+    """
+    x = rbboxes[0]
+    y = rbboxes[1]
+    w = rbboxes[2]
+    h = rbboxes[3]
+    a = np.radians(rbboxes[4])
+    cosa = np.cos(a)
+    sina = np.sin(a)
+    wx, wy = w / 2 * cosa, w / 2 * sina
+    hx, hy = -h / 2 * sina, h / 2 * cosa
+    p1x, p1y = x - wx - hx, y - wy - hy
+    p2x, p2y = x + wx - hx, y + wy - hy
+    p3x, p3y = x + wx + hx, y + wy + hy
+    p4x, p4y = x - wx + hx, y - wy + hy
+    # polys = np.stack([p1x, p1y, p2x, p2y, p3x, p3y, p4x, p4y])
+    # polys = np.expand_dims(polys, axis=0)
+    vertices = [(p1x, p1y), (p2x, p2y), (p3x, p3y), (p4x, p4y)]
+
+    # 找到最小和最大的 x、y 坐标
+    min_x = min(vertex[0] for vertex in vertices)
+    max_x = max(vertex[0] for vertex in vertices)
+    min_y = min(vertex[1] for vertex in vertices)
+    max_y = max(vertex[1] for vertex in vertices)
+
+    # 计算 AABB 的中心点
+    cx = (min_x + max_x) / 2
+    cy = (min_y + max_y) / 2
+
+    # 计算 AABB 的宽度和高度
+    w = max_x - min_x
+    h = max_y - min_y
+
+    return cx, cy, w, h
+
+
+def convert_bboxes(obb1_bboxes):
+    obb2_bboxes = []
+    for obb1_bbox in obb1_bboxes:
+        cx, cy, w, h = obb1_bbox
+        x1 = cx - w / 2
+        y1 = cy - h / 2
+        x2 = cx + w / 2
+        y2 = cy + h / 2
+        obb2_bboxes.append((x1, y1, x2, y2))
+    return obb2_bboxes
+
+
+def sole_visualcue2mergedvisualcue(obb1_bboxes):
+
+    # 初始化最小和最大坐标
+    min_x = float('inf')
+    min_y = float('inf')
+    max_x = float('-inf')
+    max_y = float('-inf')
+
+    obb2_bboxes = convert_bboxes(obb1_bboxes)
+
+    # 遍历所有边界框
+    for bbox in obb2_bboxes:
+        x1, y1, x2, y2 = bbox
+        # 更新最小和最大坐标
+        min_x = min(min_x, x1)
+        min_y = min(min_x, y1)
+        max_x = max(max_x, x2)
+        max_y = max(max_y, y2)
+
+    # 计算大边界框的中心点坐标
+    cx = (min_x + max_x) / 2
+    cy = (min_y + max_y) / 2
+
+    # 计算大边界框的宽度和高度
+    w = max_x - min_x
+    h = max_y - min_y
+
+    # 返回包含所有边界框的大边界框
+    return cx, cy, w, h
+
+
+def visualcue2imagepatch(visual_cues, image):
+    pass
+
+
+
 
 def calculate_similarity_matrix(img_feats, text_feats, logit_scale_exp, need_feat_normalize=True):
     img_feats = img_feats.detach().cpu().type(torch.float32)
