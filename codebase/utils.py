@@ -14,6 +14,7 @@ import logging
 import yaml
 import pickle as pkl
 import math
+import regex as re
 
 
 def obb2poly_np_oc(rbboxes):
@@ -227,7 +228,12 @@ def setup_vqallm(llmvqa_model_path, llmvqa_model_name, model_input_image_size, d
             return processed_images
 
         def load_image(image_file, input_size=448, max_num=12, use_dynamic=True):
-            image = Image.open(image_file).convert('RGB')
+            # image path
+            if type(image_file) == str:
+                image = Image.open(image_file).convert('RGB')
+            # image file
+            else:
+                image = image_file
             transform = build_transform(input_size=input_size)
             if use_dynamic:
                 images = dynamic_preprocess(image, image_size=input_size, use_thumbnail=True, max_num=max_num)
@@ -358,10 +364,62 @@ def sole_visualcue2mergedvisualcue(obb1_bboxes):
     return cx, cy, w, h
 
 
-def visualcue2imagepatch(visual_cues, image):
-    pass
+def get_patch_scale_bbox(bbox, patch_scale, lower, upper):
+    x1, y1, x2, y2 = bbox
+    cx = (x1 + x2) / 2
+    cy = (y1 + y2) / 2
+    w = abs(x2 - x1)
+    h = abs(y2 - y1)
+    new_w = w * patch_scale
+    new_h = h * patch_scale
+
+    x1 = cx - new_w / 2
+    y1 = cy - new_h / 2
+    x2 = cx + new_w / 2
+    y2 = cy + new_h / 2
+
+    x1 = max(x1, lower)
+    y1 = max(y1, lower)
+    x2 = min(x2, upper)
+    y2 = min(y2, upper)
+    return [x1, y1, x2, y2]
 
 
+# TODO: hard coding to 0-100
+def visualcue2imagepatch(visual_cues, image, question, transform, input_size, max_num, use_dynamic, patch_scale, lower, upper):
+    def get_bbox(bbox, w, h, normalize_max):
+        x1, y1, x2, y2 = bbox
+        return [int(x1 / normalize_max * w), int(y1 / normalize_max * h), int(x2 / normalize_max * w), int(y2 / normalize_max * h)]
+
+    visual_cues_obb2 = convert_bboxes(visual_cues)
+    bboxes = []
+    for bbox in visual_cues_obb2:
+        real_bbox = get_patch_scale_bbox(bbox, patch_scale=patch_scale, lower=lower, upper=upper)
+        bboxes.append(real_bbox)
+    question = question.split('<image>\n')[-1]
+    final_instruction = "<image>\n"
+    final_instruction += "Additional information:\n"
+    for i, bbox in enumerate(bboxes):
+        # The `final_instruction` variable is being constructed by appending additional information
+        # about sub-patches to the original instruction. It includes details about each sub-patch's
+        # location and bounding box coordinates. The final instruction is then updated in the data
+        # dictionary before being written to the output file in JSON format.
+        final_instruction += "Sub-patch {} at location <box>[{:.2f}, {:.2f}, {:.2f}, {:.2f}]</box>: <image>\n".format(i + 1, *bbox)
+    final_instruction += question
+
+    images, num_tiles = [], []
+    images.append(image)
+    num_tiles.append(1)
+    w, h = image.size
+
+    for bbox in bboxes:
+        real_bbox = get_bbox(bbox, w, h, normalize_max=upper)
+        crop = image.crop(real_bbox)
+        images.append(crop)
+        num_tiles.append(1)
+    pixel_values = [transform(image, input_size=input_size, max_num=max_num, use_dynamic=use_dynamic) for image in images]
+    pixel_values = torch.stack(pixel_values)
+    return final_instruction, pixel_values, num_tiles
 
 
 def calculate_similarity_matrix(img_feats, text_feats, logit_scale_exp, need_feat_normalize=True):

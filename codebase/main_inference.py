@@ -25,7 +25,7 @@ from codebase.utils import (setup_vlm_model, set_up_paraphrase_model, setup_vqal
                             calculate_similarity_matrix, extract_vlm_img_text_feat, ranking_patch_t2p,
                             paraphrase_model_inference, text_expand_model_inference, setup_logger, meta_df2clsimg_dict,
                             img_reduce, select_visual_cue, ranking_patch_visualcue2patch, load_yaml, get_chunk,
-                            convert_obb_to_region_str, obb2minhbb, sole_visualcue2mergedvisualcue)
+                            convert_obb_to_region_str, obb2minhbb, sole_visualcue2mergedvisualcue, visualcue2imagepatch)
 from codebase.sglang_util import get_paraphase_response, get_keyword_response, get_text_expansion_response
 
 
@@ -60,7 +60,6 @@ def imagerag_inference(image_path, question, config, contrastive_vlm, task_categ
             visual_cues.append(polys)
         merged_visual_cue = sole_visualcue2mergedvisualcue(visual_cues)
         visual_cues.append(merged_visual_cue)
-
 
     if "<ref>" in question:
         if paraphrase:
@@ -204,6 +203,7 @@ def main_fit(questions, config, answers_file, contrastive_vlm_pack, generative_v
             image_path_list.append(image_path)
             category = questions[j]['category']
             qs = questions[j]['question']
+            qs = "<image>\n" + qs
             if len(generative_vlm_pack) == 4:
                 # batch inference, single image per sample (单图批处理)
                 tensor_images = generative_vlm_load_image(image_path, input_size=config["model_input_image_size"], max_num=6, use_dynamic=config["use_dynamic"]).to(torch.bfloat16).cuda()
@@ -223,10 +223,11 @@ def main_fit(questions, config, answers_file, contrastive_vlm_pack, generative_v
                     questions=question_list,
                     generation_config=generative_vlm_generation_config
                 )
-            for item, response, category in zip(item_list, responses, category_list):
+            for question, item, response, category in zip(question_list, item_list, responses, category_list):
                 print(f'Category: {category}\nUser: {item}\nAssistant: {response}')
                 ans_file.write(json.dumps({
                     "question_id": item["question_id"],
+                    "question": question,
                     "image_id": item["image"],
                     "category": category,
                     "ground_truth": item["ground_truth"],
@@ -236,53 +237,35 @@ def main_fit(questions, config, answers_file, contrastive_vlm_pack, generative_v
                 ans_file.flush()
 
         elif mode == "imagerag":
-            visual_cue_list = []
+            visual_cues_list = []
             for i in range(len(image_path_list)):
                 image_path = image_path_list[i]
                 question = question_list[i]
                 item = item_list[i]
                 task_category = category_list[i]
-                image = image_folder[i]
-                input_images = [image]
+                # image = image_folder[i]
+                image = Image.open(image_path).convert('RGB')
+                # input_images = [image]
                 # image_path, qs, config, contrastive_vlm, client, logger
-                visual_cue = imagerag_inference(image_path, question, config, contrastive_vlm_pack, task_category, client, logger)
-                visual_cue_list.append(visual_cue)
-                input_images.append(visual_cue)
-                input_images = torch.cat(input_images, dim=0)
+                visual_cues = imagerag_inference(image_path, question, config, contrastive_vlm_pack, task_category, client, logger)
+                visual_cues_list.append(visual_cues)
+
+                final_instruction, input_image_with_cues, num_tiles = visualcue2imagepatch(visual_cues, image, question, generative_vlm_load_image, input_size=config["model_input_image_size"], max_num=6, use_dynamic=config["use_dynamic"], patch_scale=1.2, lower=0, upper=100)
 
                 with torch.inference_mode():
                     response = generative_vlm.chat(
                         generative_vlm_tokenizer,
-                        input_images,
-                        question,
+                        input_image_with_cues,
+                        final_instruction,
                         generation_config=generative_vlm_generation_config,
-                        num_patches_list=num_patches_list,
+                        num_patches_list=num_tiles,
                         history=None, return_history=True
                     )
 
-                # # multi-image multi-round conversation, separate images (多图多轮对话，独立图像)
-                # pixel_values1 = load_image('./examples/image1.jpg', max_num=12).to(torch.bfloat16).cuda()
-                # pixel_values2 = load_image('./examples/image2.jpg', max_num=12).to(torch.bfloat16).cuda()
-                # pixel_values = torch.cat((pixel_values1, pixel_values2), dim=0)
-                # num_patches_list = [pixel_values1.size(0), pixel_values2.size(0)]
-                #
-                # question = 'Image-1: <image>\nImage-2: <image>\nDescribe the two images in detail.'
-                # response, history = model.chat(tokenizer, pixel_values, question, generation_config,
-                #                                num_patches_list=num_patches_list,
-                #                                history=None, return_history=True)
-                # print(f'User: {question}\nAssistant: {response}')
-                #
-                # question = 'What are the similarities and differences between these two images.'
-                # response, history = model.chat(tokenizer, pixel_values, question, generation_config,
-                #                                num_patches_list=num_patches_list,
-                #                                history=history, return_history=True)
-                # print(f'User: {question}\nAssistant: {response}')
-
-
-            # for item, response, category, visual_cue in zip(item_list, responses, category_list, visual_cue_list):
                 print(f'Category: {task_category}\nUser: {item}\nAssistant: {response}')
                 ans_file.write(json.dumps({
                     "question_id": item["question_id"],
+                    "question": final_instruction,
                     "image_id": item["image"],
                     "category": task_category,
                     "ground_truth": item["ground_truth"],

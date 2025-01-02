@@ -350,3 +350,23 @@ In the rewritten query, we've assumed that "northeast" means in an up-right dire
 2024-12-06 19:28:02,787 - my_logger - INFO - Ranked Patch Shape: (5, 4)
 2024-12-06 19:28:02,787 - my_logger - INFO - Corresponding similarity: [24.68778419494629, 24.379417419433594, 24.117340087890625, 23.584365844726562, 24.78061294555664]
 2024-12-06 19:28:04,461 - my_logger - INFO - fast path similarity does not meet the threshold, choose the slow path
+2025-01-01 20:51:04,379 - my_logger - INFO - original image width and height: 512, 512
+2025-01-01 20:55:01,201 - my_logger - INFO - original image width and height: 512, 512
+2025-01-01 21:06:32,117 - my_logger - INFO - original image width and height: 7880, 6344
+2025-01-01 21:10:18,565 - my_logger - INFO - original image width and height: 7880, 6344
+2025-01-01 21:37:59,355 - my_logger - INFO - original image width and height: 7880, 6344
+2025-01-01 21:39:26,776 - my_logger - INFO - original image width and height: 7880, 6344
+2025-01-01 21:41:14,193 - my_logger - INFO - original image width and height: 7880, 6344
+2025-01-01 21:42:24,433 - my_logger - INFO - original image width and height: 7880, 6344
+2025-01-01 21:43:48,237 - my_logger - INFO - original image width and height: 7880, 6344
+2025-01-01 21:44:36,569 - my_logger - INFO - original image width and height: 7880, 6344
+2025-01-01 21:45:23,225 - my_logger - INFO - original image width and height: 7880, 6344
+2025-01-02 22:45:32,128 - my_logger - INFO - original image width and height: 7880, 6344
+2025-01-02 22:49:44,401 - my_logger - INFO - original image width and height: 7880, 6344
+2025-01-02 22:50:31,314 - my_logger - INFO - original image width and height: 7880, 6344
+2025-01-02 22:52:43,098 - my_logger - INFO - original image width and height: 7880, 6344
+2025-01-02 22:54:44,388 - my_logger - INFO - original image width and height: 7880, 6344
+2025-01-02 22:56:50,152 - my_logger - INFO - original image width and height: 7880, 6344
+2025-01-02 23:03:18,618 - my_logger - INFO - original image width and height: 7880, 6344
+2025-01-02 23:15:09,510 - my_logger - INFO - original image width and height: 7880, 6344
+2025-01-02 23:22:25,720 - my_logger - INFO - original image width and height: 7880, 6344
