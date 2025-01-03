@@ -303,7 +303,7 @@ if __name__ == "__main__":
     # answer_file = "/media/zilun/fanxiang4t/GRSM/ImageRAG_git/codebase/data/eval/eval_FITRS_complex_comprehension_eval_8para_complete_double_100_448_fit_inference_double_100_448_dynamic.jsonl"
     # eval_ComplexCompre(answer_file, param=8, group="double")
     
-    answer_file = "/media/zilun/fanxiang4t/GRSM/ImageRAG_git/codebase/data/eval/eval_FITRS_complex_comprehension_eval_8para_complete_single_100_448_star_inference_single_100_448_dynamic.jsonl"
+    answer_file = "/media/zilun/fanxiang4t/GRSM/ImageRAG_git/data/eval/eval_FITRS_complex_comprehension_eval_8para_complete_single_100_448_star_inference_single_100_448_dynamic.jsonl"
     eval_ComplexCompre(answer_file, param=8, group="single")
     
 

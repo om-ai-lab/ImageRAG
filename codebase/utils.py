@@ -361,7 +361,7 @@ def sole_visualcue2mergedvisualcue(obb1_bboxes):
     h = max_y - min_y
 
     # 返回包含所有边界框的大边界框
-    return cx, cy, w, h
+    return min_x, min_y, max_x, max_y
 
 
 def get_patch_scale_bbox(bbox, patch_scale, lower, upper):

@@ -582,10 +582,14 @@ def poly2obb_np_oc(poly):
     rbbox = cv2.minAreaRect(bboxps)
     x, y, w, h, a = rbbox[0][0], rbbox[0][1], rbbox[1][0], rbbox[1][1], rbbox[
         2]
+    print(x, y, w, h, a)
     while not 0 < a <= 90:
         if a == -90:
+            print(a)
             a += 180
         else:
+            if a > 1000:
+                print()
             a += 90
             w, h = h, w
     a = a / 180 * np.pi
