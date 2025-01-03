@@ -109,13 +109,13 @@ def star_denormalization(rbbox, image_w, image_h):
     rbbox: normalzied rbbox
     return: unnormalized rbbox (deg angle)
     """
-    cx, cy, w, h, angle_deg = rbbox
-    cx = cx / 1000 * image_w
-    cy = cy / 1000 * image_h
-    w = w / 1000 * image_w
-    h = h / 1000 * image_h
+    x1, y1, x2, y2, angle_deg = rbbox
+    x1 = x1 / 1000 * image_w
+    y1 = y1 / 1000 * image_h
+    x2 = x2 / 1000 * image_w
+    y2 = y2 / 1000 * image_h
     # angle_rad = math.radians(angle_deg)
-    return cx, cy, w, h, angle_deg
+    return x1, y1, x2, y2, angle_deg
 
 
 def convert_bboxes(obb1_bboxes):
@@ -229,6 +229,74 @@ def vis_bbox(img_path, list_bbox, dataset_name):
     # 显示图像
     plt.show()
 
+
+def bbox_location(image_width, image_height, bbox):
+    """
+    :param image_width:
+    :param image_height:
+    :param bbox: old: (up left x, up left y, w, h), new: (x1, y1, x2, y2)
+    :return:
+    """
+    # Define the 3x3 grid dimensions
+    grid_width = image_width / 3
+    grid_height = image_height / 3
+
+    # Extract bbox details
+    x1, y1, x2, y2 = bbox
+    x = x1
+    y = y1
+    w = x2 - x1
+    h = y2 - y1
+    # x, y, w, h = bbox
+
+    # Define the boundaries for each of the 9 regions
+    regions = {
+        "Top-left":      (grid_width * 0, grid_height * 0, grid_width, grid_height),
+        "Top-center":    (grid_width * 1, grid_height * 0, grid_width, grid_height),
+        "Top-right":     (grid_width * 2, grid_height * 0, grid_width, grid_height),
+        "Center-left":   (grid_width * 0, grid_height * 1, grid_width, grid_height),
+        "Center":        (grid_width * 1, grid_height * 1, grid_width, grid_height),
+        "Center-right":  (grid_width * 2, grid_height * 1, grid_width, grid_height),
+        "Bottom-left":   (grid_width * 0, grid_height * 2, grid_width, grid_height),
+        "Bottom-center": (grid_width * 1, grid_height * 2, grid_width, grid_height),
+        "Bottom-right":  (grid_width * 2, grid_height * 2, grid_width, grid_height)
+    }
+
+    def intersection_area(target_bbox, region_bbox):
+        """
+
+        :param target_bbox: x1, y1, w1, h1
+        :param region_bbox: x2, y2, w2, h2
+        :return:
+        """
+
+        x1, y1, w1, h1 = target_bbox
+        x2, y2, w2, h2 = region_bbox
+
+        # Calculate the overlap boundaries
+        xA = max(x1, x2)
+        yA = max(y1, y2)
+        xB = min(x1 + w1, x2 + w2)
+        yB = min(y1 + h1, y2 + h2)
+        intersection_area = max(0, xB - xA) * max(0, yB - yA)
+
+        return intersection_area
+
+    # Calculate intersection area for each region
+    overlaps = {
+        region: intersection_area([x, y, w, h], [rx, ry, rw, rh])
+        for region, (rx, ry, rw, rh) in regions.items()
+    }
+
+    # Return the region with the maximum overlap
+    first_return = max(overlaps, key=overlaps.get)
+    # del overlaps[max(overlaps, key=overlaps.get)]
+    # second_return = max(overlaps, key=overlaps.get)
+    # return "{} and {} blocks".format(first_return, second_return)
+    return first_return
+
+
+
 def main():
     bench_json_path = "/media/zilun/fanxiang4t/GRSM/ImageRAG_git/data/train/FIT-RS-train-1415k_5para.json"
     output_file_path = "/media/zilun/fanxiang4t/GRSM/ImageRAG_git/data/train/FIT-RS-train-1415k_5para_star_obb2_0-1000.json"
@@ -254,8 +322,17 @@ def main():
         w_star, h_star, star_img_dir = star_stats[star_img_name]
         instruction['star_width'] = w_star
         instruction['star_height'] = h_star
+        fit_relative_pos_star = bbox_location(w_star, h_star, [star_upleft_coord_x, star_upleft_coord_y, star_upleft_coord_x + w_fit, star_upleft_coord_y + h_fit])
+        instruction['fit_relative_pos_star'] = fit_relative_pos_star
         instruction['additional_roi_coord'] = dict()
-        instruction['additional_roi_coord']['fit'] = (star_upleft_coord_x, star_upleft_coord_y, star_upleft_coord_x + w_fit, star_upleft_coord_y + h_fit)
+        instruction['additional_roi_coord']
+        instruction['additional_roi_coord']['fit'] = [[
+            star_upleft_coord_x / w_star * 1000,
+            star_upleft_coord_y / h_star * 1000,
+            (star_upleft_coord_x + w_fit) / w_star * 1000,
+            (star_upleft_coord_y + h_fit) / h_star * 1000
+        ]]
+
         instruction['additional_roi_coord']['object'] = []
         star_img_path = os.path.join(star_img_dir, star_img_name)
         fit_img_path = os.path.join(fit_img_dir, img_name)
@@ -293,9 +370,14 @@ def main():
                     todo_str = todo_str.replace(f'{{{match}}}', rbox_str)
 
                     # TODO: Separate QA's ROI
-                    out_hbb = obb2_to_min_out_hbb([x1_star_norm, y1_star_norm, x2_star_norm, y2_star_norm, theta_degree])
-                    out_hbb_scaled = get_patch_scale_bbox(out_hbb, scale_factor=1.2, x_upper=1000, y_upper=1000)
-                    instruction['additional_roi_coord']['object'].append(out_hbb_scaled)
+                    # out_hbb = obb2_to_min_out_hbb([x1_star_norm, y1_star_norm, x2_star_norm, y2_star_norm, theta_degree])
+                    # out_hbb_scaled = get_patch_scale_bbox(out_hbb, scale_factor=1.2, x_upper=1000, y_upper=1000)
+
+                    out_hbb = obb2_to_min_out_hbb([x1_star, y1_star, x2_star, y2_star, theta_degree])
+                    out_hbb_scaled = get_patch_scale_bbox(out_hbb, scale_factor=1.3, x_upper=w_star, y_upper=h_star)
+                    out_hbb_scaled_x = np.array([out_hbb_scaled[0], out_hbb_scaled[2]]) / w_star * 1000
+                    out_hbb_scaled_y = np.array([out_hbb_scaled[1], out_hbb_scaled[3]]) / h_star * 1000
+                    instruction['additional_roi_coord']['object'].append([out_hbb_scaled_x[0], out_hbb_scaled_y[0], out_hbb_scaled_x[1], out_hbb_scaled_y[1]])
                     # star_bbox_list.append(out_hbb)
 
                 # vis_bbox(fit_img_path, fit_bbox_list, "fit")
