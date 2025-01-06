@@ -162,7 +162,7 @@ def fituhr_inference_internvl(config):
         return pixel_values
 
     # init model
-    model_path = config['fast_vlm_model']['model_path']
+    model_path = config['llmvqa_model']['model_path']
 
     # If you have an 80G A100 GPU, you can put the entire model on a single GPU.
     # Otherwise, you need to load a model using multiple GPUs, please refer to the `Multiple GPUs` section.
