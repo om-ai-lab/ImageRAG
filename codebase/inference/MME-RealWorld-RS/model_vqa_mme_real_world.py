@@ -183,7 +183,7 @@ def eval_model(args):
     os.makedirs(os.path.dirname(answers_file), exist_ok=True)
     ans_file = open(answers_file, "w")
 
-    data_loader = create_data_loader(questions, args.image_folder, tokenizer, load_image, model.config, prompt=args.test_prompt)
+    data_loader = create_data_loader(questions, args.image_folder, tokenizer, load_image, model.config, args.batch_size, prompt=args.test_prompt)
 
     index = 0
     for (image_tensors, prompts, num_patches_list, question_text_only_list, line) in tqdm(data_loader):
@@ -219,6 +219,7 @@ if __name__ == "__main__":
     parser.add_argument("--top_p", type=float, default=None)
     parser.add_argument("--num_beams", type=int, default=1)
     parser.add_argument("--max_new_tokens", type=int, default=64)
+    parser.add_argument("--batch_size", type=int, default=2)
 
     parser.add_argument("--use-qlora", type=bool, default=False)
     parser.add_argument("--qlora-path", type=str, default="")
