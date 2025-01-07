@@ -181,12 +181,12 @@ def fit2star(fit_coord_denorm, star_upleft_coord_x, star_upleft_coord_y):
 
     # target obb2
     x1, y1, x2, y2, theta = fit_coord_denorm
-    print("FIT Coord: {}".format(fit_coord_denorm))
+    # print("FIT Coord: {}".format(fit_coord_denorm))
     x1_star = star_upleft_coord_x + x1
     y1_star = star_upleft_coord_y + y1
     x2_star = star_upleft_coord_x + x2
     y2_star = star_upleft_coord_y + y2
-    print("STAR Coord: {}".format((x1_star, y1_star, x2_star, y2_star, theta)))
+    # print("STAR Coord: {}".format((x1_star, y1_star, x2_star, y2_star, theta)))
     return x1_star, y1_star, x2_star, y2_star, theta
 
 
@@ -314,6 +314,7 @@ def process_intermediate(json_path, star_stats, output_file_path, task_type):
     with open(json_path, "r") as f:
         base = json.load(f)
     modified_data = []
+    no_coord_count = 0
     # 匹配 <rbox>
     for i, instruction in enumerate(tqdm(base)):
         conv = instruction['conversations']
@@ -347,7 +348,7 @@ def process_intermediate(json_path, star_stats, output_file_path, task_type):
             if '<rbox>' in sentence['value']:
                 # 进行替换,5参数->8参数
                 todo_str = sentence['value']
-                print(todo_str)
+                # print(todo_str)
                 # 使用正则表达式查找所有 <rbox> 标签中的内容
                 pattern = r'\{(<.*?>)\}'
                 # 使用正则表达式找到所有的矩形框
@@ -373,29 +374,36 @@ def process_intermediate(json_path, star_stats, output_file_path, task_type):
                     rbox_str = "{<%.2f><%.2f><%.2f><%.2f>|<%d>}" % (x1_star_norm, y1_star_norm, x2_star_norm, y2_star_norm, theta_degree)
                     todo_str = todo_str.replace(f'{{{match}}}', rbox_str)
 
-                    # TODO: Separate QA's ROI
-                    # out_hbb = obb2_to_min_out_hbb([x1_star_norm, y1_star_norm, x2_star_norm, y2_star_norm, theta_degree])
-                    # out_hbb_scaled = get_patch_scale_bbox(out_hbb, scale_factor=1.2, x_upper=1000, y_upper=1000)
-
-                    out_hbb = obb2_to_min_out_hbb([x1_star, y1_star, x2_star, y2_star, theta_degree])
-                    out_hbb_scaled = get_patch_scale_bbox(out_hbb, scale_factor=1.3, x_upper=w_star, y_upper=h_star)
-                    out_hbb_scaled_x = np.array([out_hbb_scaled[0], out_hbb_scaled[2]]) / w_star * 1000
-                    out_hbb_scaled_y = np.array([out_hbb_scaled[1], out_hbb_scaled[3]]) / h_star * 1000
-                    instruction['additional_roi_coord']['object'].append([out_hbb_scaled_x[0], out_hbb_scaled_y[0], out_hbb_scaled_x[1], out_hbb_scaled_y[1]])
-                    # star_bbox_list.append(out_hbb)
+                    if sentence['from'] == "human":
+                        # TODO: Separate QA's ROI
+                        # out_hbb = obb2_to_min_out_hbb([x1_star_norm, y1_star_norm, x2_star_norm, y2_star_norm, theta_degree])
+                        # out_hbb_scaled = get_patch_scale_bbox(out_hbb, scale_factor=1.2, x_upper=1000, y_upper=1000)
+                        out_hbb = obb2_to_min_out_hbb([x1_star, y1_star, x2_star, y2_star, theta_degree])
+                        out_hbb_scaled = get_patch_scale_bbox(out_hbb, scale_factor=1.3, x_upper=w_star, y_upper=h_star)
+                        out_hbb_scaled_x = np.array([out_hbb_scaled[0], out_hbb_scaled[2]]) / w_star * 1000
+                        out_hbb_scaled_y = np.array([out_hbb_scaled[1], out_hbb_scaled[3]]) / h_star * 1000
+                        instruction['additional_roi_coord']['object'].append([out_hbb_scaled_x[0], out_hbb_scaled_y[0], out_hbb_scaled_x[1], out_hbb_scaled_y[1]])
+                        # star_bbox_list.append(out_hbb)
 
                 # vis_bbox(fit_img_path, fit_bbox_list, "fit")
                 # vis_bbox(star_img_path, star_bbox_list, "star")
-                merged_visual_cue = sole_visualcue2mergedvisualcue(instruction['additional_roi_coord']['object'])
-                instruction['additional_roi_coord']['object'].append(merged_visual_cue)
+                if len(instruction['additional_roi_coord']['object']) == 0:
+                    # print("item {} does not have rbox in question. \n{}".format(instruction["id"], instruction["conversations"]))
+                    no_coord_count += 1
+                else:
+                    merged_visual_cue = sole_visualcue2mergedvisualcue(instruction['additional_roi_coord']['object'])
+                    instruction['additional_roi_coord']['object'].append(merged_visual_cue)
+
                 sentence['value'] = todo_str
 
         # 将修改后的数据添加到新的变量中
         modified_data.append(instruction)
-
+    print(json_path, task_type)
+    print("Count for non-coord question: {} (if 'rbox' exists)".format(no_coord_count))
     with open(output_file_path, 'w') as outfile:
         json.dump(modified_data, outfile, indent=4)
     print('done!')
+
 
 
 def process_final_cc_vqa_multiturn_imageclassification(intermediate_path, final_path):
@@ -545,6 +553,9 @@ def process_final_regioncaption(intermediate_path, final_path):
         fit_coord = additional_roi_coord["fit"][0]
         # TODO: 这么多<image>，怎么送patch进去？
         final_instruction += "Sub-patch 1 at location <box>[[{:.2f}, {:.2f}, {:.2f}, {:.2f}]]</box>: <image>\n".format(*fit_coord)
+        # if len(additional_roi_coord["object"]) > 0:
+        #     union_patch = additional_roi_coord["object"][-1]
+        #     final_instruction += "Sub-patch 2 at location <box>[[{:.2f}, {:.2f}, {:.2f}, {:.2f}]]</box>: <image>\n".format(*union_patch)
         final_instruction += "Look at {} of the image and answer the question: \n".format(fit_relative_pos_star.lower())
         old_value = old_value.split('<image>\n')[-1]
         # final_instruction += "Here is a description of a region in the image: "
@@ -587,6 +598,7 @@ def process_final_regioncaption(intermediate_path, final_path):
         new_instruction["additional_roi_coord"] = instruction["additional_roi_coord"]
         new_conv = generate_regioncaption_conv(instruction["conversations"], instruction["additional_roi_coord"], instruction["fit_relative_pos_star"])
         new_instruction["conversations"] = new_conv
+        new_instruction["additional_roi_coord"]["object"] = []
         modified_data.append(new_instruction)
 
     with open(final_path, 'w') as outfile:
@@ -595,32 +607,32 @@ def process_final_regioncaption(intermediate_path, final_path):
 
 
 def main():
-    cc_input_path = "/data1/zilun/grsm/ImageRAG_git/data/train/train_data_of_each_individual_task/train_instruction_complexcompare_708k.json"
-    cc_intermediate_path = "/data1/zilun/grsm/ImageRAG_git/data/train/cc_intermediate_5para_star_obb2_0-1000.json"
-    cc_final_path = "/data1/zilun/grsm/ImageRAG_git/data/train/cc_final_5para_star_obb2_0-1000.json"
+    cc_input_path = "/mnt/cfs/zilun/GRSM/FIT/FIT-RS/FIT-RS_Instruction/train_data_of_each_individual_task/train_instruction_complexcompare_708k.json"
+    cc_intermediate_path = "/mnt/cfs/zilun/GRSM/FIT/FIT-RS/FIT-RS_Instruction/train_data_of_each_individual_task/cc_intermediate_5para_star_obb2_0-1000.json"
+    cc_final_path = "/mnt/cfs/zilun/GRSM/FIT/FIT-RS/FIT-RS_Instruction/train_data_of_each_individual_task/cc_final_5para_star_obb2_0-1000.json"
 
-    vqa_input_path = "/data1/zilun/grsm/ImageRAG_git/data/train/train_data_of_each_individual_task/train_instruction_vqa_400k.json"
-    vqa_intermediate_path = "/data1/zilun/grsm/ImageRAG_git/data/train/vqa_intermediate_5para_star_obb2_0-1000.json"
-    vqa_final_path = "/data1/zilun/grsm/ImageRAG_git/data/train/vqa_final_5para_star_obb2_0-1000.json"
+    vqa_input_path = "/mnt/cfs/zilun/GRSM/FIT/FIT-RS/FIT-RS_Instruction/train_data_of_each_individual_task/train_instruction_vqa_400k.json"
+    vqa_intermediate_path = "/mnt/cfs/zilun/GRSM/FIT/FIT-RS/FIT-RS_Instruction/train_data_of_each_individual_task/vqa_intermediate_5para_star_obb2_0-1000.json"
+    vqa_final_path = "/mnt/cfs/zilun/GRSM/FIT/FIT-RS/FIT-RS_Instruction/train_data_of_each_individual_task/vqa_final_5para_star_obb2_0-1000.json"
 
-    imageclassification_input_path = "/data1/zilun/grsm/ImageRAG_git/data/train/train_data_of_each_individual_task/train_instruction_imageclassification_130k.json"
-    imageclassification_intermediate_path = "/data1/zilun/grsm/ImageRAG_git/data/train/imageclassification_intermediate_5para_star_obb2_0-1000.json"
-    imageclassification_final_path = "/data1/zilun/grsm/ImageRAG_git/data/train/imageclassification_final_5para_star_obb2_0-1000.json"
+    imageclassification_input_path = "/mnt/cfs/zilun/GRSM/FIT/FIT-RS/FIT-RS_Instruction/train_data_of_each_individual_task/train_instruction_imageclassification_130k.json"
+    imageclassification_intermediate_path = "/mnt/cfs/zilun/GRSM/FIT/FIT-RS/FIT-RS_Instruction/train_data_of_each_individual_task/imageclassification_intermediate_5para_star_obb2_0-1000.json"
+    imageclassification_final_path = "/mnt/cfs/zilun/GRSM/FIT/FIT-RS/FIT-RS_Instruction/train_data_of_each_individual_task/imageclassification_final_5para_star_obb2_0-1000.json"
 
-    multiturn_json_path = "/data1/zilun/grsm/ImageRAG_git/data/train/train_data_of_each_individual_task/train_instruction_multiturn_50k.json"
-    multiturn_intermediate_path = "/data1/zilun/grsm/ImageRAG_git/data/train/multiturn_intermediate_5para_star_obb2_0-1000.json"
-    multiturn_final_path = "/data1/zilun/grsm/ImageRAG_git/data/train/multiturn_final_5para_star_obb2_0-1000.json"
+    multiturn_json_path = "/mnt/cfs/zilun/GRSM/FIT/FIT-RS/FIT-RS_Instruction/train_data_of_each_individual_task/train_instruction_multiturn_50k.json"
+    multiturn_intermediate_path = "/mnt/cfs/zilun/GRSM/FIT/FIT-RS/FIT-RS_Instruction/train_data_of_each_individual_task/multiturn_intermediate_5para_star_obb2_0-1000.json"
+    multiturn_final_path = "/mnt/cfs/zilun/GRSM/FIT/FIT-RS/FIT-RS_Instruction/train_data_of_each_individual_task/multiturn_final_5para_star_obb2_0-1000.json"
 
-    imagecaption_input_path = "/data1/zilun/grsm/ImageRAG_git/data/train/train_data_of_each_individual_task/train_instruction_imagecaption_65k.json"
-    imagecaption_intermediate_path = "/data1/zilun/grsm/ImageRAG_git/data/train/imagecaption_intermediate_5para_star_obb2_0-1000.json"
-    imagecaption_final_path = "/data1/zilun/grsm/ImageRAG_git/data/train/imagecaption_final_5para_star_obb2_0-1000.json"
+    imagecaption_input_path = "/mnt/cfs/zilun/GRSM/FIT/FIT-RS/FIT-RS_Instruction/train_data_of_each_individual_task/train_instruction_imagecaption_65k.json"
+    imagecaption_intermediate_path = "/mnt/cfs/zilun/GRSM/FIT/FIT-RS/FIT-RS_Instruction/train_data_of_each_individual_task/imagecaption_intermediate_5para_star_obb2_0-1000.json"
+    imagecaption_final_path = "/mnt/cfs/zilun/GRSM/FIT/FIT-RS/FIT-RS_Instruction/train_data_of_each_individual_task/imagecaption_final_5para_star_obb2_0-1000.json"
 
-    regioncaption_input_path = "/data1/zilun/grsm/ImageRAG_git/data/train/train_data_of_each_individual_task/train_instruction_regioncaption_72k.json"
-    regioncaption_intermediate_path = "/data1/zilun/grsm/ImageRAG_git/data/train/regioncaption_intermediate_5para_star_obb2_0-1000.json"
-    regioncaption_final_path = "/data1/zilun/grsm/ImageRAG_git/data/train/regioncaption_final_5para_star_obb2_0-1000.json"
+    regioncaption_input_path = "/mnt/cfs/zilun/GRSM/FIT/FIT-RS/FIT-RS_Instruction/train_data_of_each_individual_task/train_instruction_regioncaption_72k.json"
+    regioncaption_intermediate_path = "/mnt/cfs/zilun/GRSM/FIT/FIT-RS/FIT-RS_Instruction/train_data_of_each_individual_task/regioncaption_intermediate_5para_star_obb2_0-1000.json"
+    regioncaption_final_path = "/mnt/cfs/zilun/GRSM/FIT/FIT-RS/FIT-RS_Instruction/train_data_of_each_individual_task/regioncaption_final_5para_star_obb2_0-1000.json"
 
-    star_stats_path = "/data1/zilun/grsm/ImageRAG_git/codebase/dataset_process/star_statistics.pkl"
-    fit_img_dir = "/data1/zilun/grsm/FIT/FIT/FIT-RS/FIT-RS_Instruction/imgv2_split_512_100_vaild/"
+    star_stats_path = "/mnt/cfs/zilun/GRSM/FIT/FIT-RS/FIT-RS_Instruction/star_statistics.pkl"
+    fit_img_dir = "/mnt/cfs/zilun/GRSM/FIT/FIT-RS/FIT-RS_Instruction/imgv2_split_512_100_valid"
     star_stats = pkl.load(open(star_stats_path, "rb"))
 
     process_intermediate(cc_input_path, star_stats, cc_intermediate_path, task_type="complex_compare")
@@ -637,7 +649,7 @@ def main():
     process_final_imagecaption(imagecaption_intermediate_path, imagecaption_final_path)
     process_final_regioncaption(regioncaption_intermediate_path, regioncaption_final_path)
 
-    summary_final_path = "/data1/zilun/grsm/ImageRAG_git/data/shz_temp/AGMLLLM_final_5para_star_obb2_0-1000.jsonl"
+    summary_final_path = "/mnt/cfs/zilun/GRSM/FIT/FIT-RS/FIT-RS_Instruction/AGMLLLM_final_5para_star_obb2_0-1000_nocoordquestion.jsonl"
     jsons2jsonl([cc_final_path, vqa_final_path, imageclassification_final_path, multiturn_final_path, imagecaption_final_path, regioncaption_final_path], summary_final_path)
 
 

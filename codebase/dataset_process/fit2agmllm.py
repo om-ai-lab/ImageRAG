@@ -380,7 +380,7 @@ def process_intermediate(json_path, star_stats, output_file_path, task_type):
                         # out_hbb = obb2_to_min_out_hbb([x1_star_norm, y1_star_norm, x2_star_norm, y2_star_norm, theta_degree])
                         # out_hbb_scaled = get_patch_scale_bbox(out_hbb, scale_factor=1.2, x_upper=1000, y_upper=1000)
                         out_hbb = obb2_to_min_out_hbb([x1_star, y1_star, x2_star, y2_star, theta_degree])
-                        out_hbb_scaled = get_patch_scale_bbox(out_hbb, scale_factor=1.3, x_upper=w_star, y_upper=h_star)
+                        out_hbb_scaled = get_patch_scale_bbox(out_hbb, scale_factor=1.5, x_upper=w_star, y_upper=h_star)
                         out_hbb_scaled_x = np.array([out_hbb_scaled[0], out_hbb_scaled[2]]) / w_star * 1000
                         out_hbb_scaled_y = np.array([out_hbb_scaled[1], out_hbb_scaled[3]]) / h_star * 1000
                         instruction['additional_roi_coord']['object'].append([out_hbb_scaled_x[0], out_hbb_scaled_y[0], out_hbb_scaled_x[1], out_hbb_scaled_y[1]])
@@ -413,19 +413,25 @@ def process_final_cc_vqa_multiturn_imageclassification(intermediate_path, final_
         final_instruction += "Additional information:\n"
         fit_coord = additional_roi_coord["fit"][0]
         # TODO: 这么多<image>，怎么送patch进去？
-        final_instruction += "Region of Interest: <box>[[{:.2f}, {:.2f}, {:.2f}, {:.2f}]]</box>: <image>\n".format(*fit_coord)
+        # final_instruction += "Region of Interest at location <box>[[{:.2f}, {:.2f}, {:.2f}, {:.2f}]]</box>: <image>\n".format(*fit_coord)
+        # if len(additional_roi_coord["object"]) > 0:
+        #     union_patch = additional_roi_coord["object"][-1]
+        #     final_instruction += "Union Patch of Targets at location <box>[[{:.2f}, {:.2f}, {:.2f}, {:.2f}]]</box>: <image>\n".format(*union_patch)
+        #     for i, bbox in enumerate(additional_roi_coord["object"][:-1]):
+        #         final_instruction += "Sub-patch {} at location <box>[[{:.2f}, {:.2f}, {:.2f}, {:.2f}]]</box>: <image>\n".format(i + 1, *bbox)
+        # final_instruction += "Look at {} of the image and answer the question based on the provided additional information (the Region of Interest, the Union Patch of Targets, and Sub-patches): \n".format(fit_relative_pos_star.lower())
+        # old_value = old_value.split('<image>\n')[-1]
+        # final_instruction += old_value
+        
+        final_instruction += "Sub-patch 1 at location <box>[[{:.2f}, {:.2f}, {:.2f}, {:.2f}]]</box>: <image>\n".format(*fit_coord)
         if len(additional_roi_coord["object"]) > 0:
             union_patch = additional_roi_coord["object"][-1]
-            final_instruction += "Union patch of targets: <box>[[{:.2f}, {:.2f}, {:.2f}, {:.2f}]]</box>: <image>\n".format(*union_patch)
+            final_instruction += "Sub-patch 2 at location <box>[[{:.2f}, {:.2f}, {:.2f}, {:.2f}]]</box>: <image>\n".format(*union_patch)
             for i, bbox in enumerate(additional_roi_coord["object"][:-1]):
-                # The `final_instruction` variable is being constructed by appending additional information
-                # about sub-patches to the original instruction. It includes details about each sub-patch's
-                # location and bounding box coordinates. The final instruction is then updated in the data
-                # dictionary before being written to the output file in JSON format.
-                # <box>[[243, 469, 558, 746]]</box>
-                final_instruction += "Sub-patch {} at location <box>[[{:.2f}, {:.2f}, {:.2f}, {:.2f}]]</box>: <image>\n".format(i + 1, *bbox)
-        final_instruction += "Look at {} of the image and answer the question: \n".format(fit_relative_pos_star.lower())
+                final_instruction += "Sub-patch {} at location <box>[[{:.2f}, {:.2f}, {:.2f}, {:.2f}]]</box>: <image>\n".format(i + 3, *bbox)
+        final_instruction += "Look at {} of the image and answer the question based on the provided additional information (location of sub-patches) \n".format(fit_relative_pos_star.lower())
         old_value = old_value.split('<image>\n')[-1]
+        final_instruction += "Question: "
         final_instruction += old_value
 
         return final_instruction
@@ -445,30 +451,6 @@ def process_final_cc_vqa_multiturn_imageclassification(intermediate_path, final_
 
     with open(intermediate_path, "r") as f:
         base = json.load(f)
-
-    # TODO: Not right?
-    # {
-    #     "id": 0,
-    #     "image": [
-    #         "cimages/multimages/16/5pc.png",
-    #         "cimages/multimages/16/5pd.png",
-    #         "cimages/multimages/16/1602207874_p5b.png",
-    #         "cimages/multimages/16/5pe.png",
-    #         "cimages/multimages/16/1473016381_p5a.png"
-    #     ],
-    #     "height_list": [23, 22, 23, 41, 52],
-    #     "width_list": [240, 240, 240, 240, 240],
-    #     "conversations": [
-    #         {
-    #             "from": "human",
-    #             "value": "Let F = {2, 5, 7, 9}\n\nLet G = {1, 4, 6, 8}\n\nWhich of the following is true?\nA. \n<image>\n\nB. /\n<image>\n\nC. /\n<image>\n\nD. /\n<image>\n\nE. /\n<image>\n\nAnswer with the option's letter from the given choices directly."
-    #         },
-    #         {
-    #             "from": "gpt",
-    #             "value": "A"
-    #         }
-    #     ]
-    # }
 
     modified_data = []
     for i, instruction in enumerate(tqdm(base)):
@@ -495,18 +477,21 @@ def process_final_imagecaption(intermediate_path, final_path):
         final_instruction += "Additional information:\n"
         fit_coord = additional_roi_coord["fit"][0]
         # TODO: 这么多<image>，怎么送patch进去？
-        final_instruction += "Region of Interest: <box>[[{:.2f}, {:.2f}, {:.2f}, {:.2f}]]</box>: <image>\n".format(*fit_coord)
-        final_instruction += "Look at {} of the image and answer the question: \n".format(fit_relative_pos_star.lower())
+        # final_instruction += "Region of Interest at location <box>[[{:.2f}, {:.2f}, {:.2f}, {:.2f}]]</box>: <image>\n".format(*fit_coord)
+        # final_instruction += "Look at {} of the image and answer the question based on the provided additional information (the Region of Interest): \n".format(fit_relative_pos_star.lower())
+        final_instruction += "Sub-patch 1 at location <box>[[{:.2f}, {:.2f}, {:.2f}, {:.2f}]]</box>: <image>\n".format(*fit_coord)
+        final_instruction += "Look at {} of the image and answer the question based on the provided additional information (location of sub-patches). \n".format(fit_relative_pos_star.lower())
         old_value = old_value.split('<image>\n')[-1]
         # final_instruction += "Here is a description of a region in the image: "
+        final_instruction += "Question: "
         final_instruction += old_value
-        final_instruction += " Could you provide the bounding box coordinate of the region described above?"
+        final_instruction += " Could you provide the location of the region described?"
         return final_instruction
 
     def generate_imagecaption_gpt(additional_roi_coord):
         fit_coord = additional_roi_coord["fit"][0]
         # <rbox>({<23.86><479.36><29.71><541.63>|<1>})</rbox>
-        final_instruction = "The location of the described region is: <rbox>({<%.2f><%.2f><%.2f><%.2f>|<%d>})</rbox>" % (fit_coord[0], fit_coord[1], fit_coord[2], fit_coord[3], 0)
+        final_instruction = "The location of the described region is <rbox>({<%.2f><%.2f><%.2f><%.2f>|<%d>})</rbox>" % (fit_coord[0], fit_coord[1], fit_coord[2], fit_coord[3], 0)
         return final_instruction
 
 
@@ -552,12 +537,25 @@ def process_final_regioncaption(intermediate_path, final_path):
         final_instruction += "Additional information:\n"
         fit_coord = additional_roi_coord["fit"][0]
         # TODO: 这么多<image>，怎么送patch进去？
-        final_instruction += "Region of Interest: <box>[[{:.2f}, {:.2f}, {:.2f}, {:.2f}]]</box>: <image>\n".format(*fit_coord)
-        final_instruction += "Look at {} of the image and answer the question: \n".format(fit_relative_pos_star.lower())
+        # final_instruction += "Region of Interest at location <box>[[{:.2f}, {:.2f}, {:.2f}, {:.2f}]]</box>: <image>\n".format(*fit_coord)
+        # if len(additional_roi_coord["object"]) > 0:
+        #     union_patch = additional_roi_coord["object"][-1]
+        #     final_instruction += "Union Patch of Targets at location <box>[[{:.2f}, {:.2f}, {:.2f}, {:.2f}]]</box>: <image>\n".format(*union_patch)
+        #     for i, bbox in enumerate(additional_roi_coord["object"][:-1]):
+        #         final_instruction += "Sub-patch {} at location <box>[[{:.2f}, {:.2f}, {:.2f}, {:.2f}]]</box>: <image>\n".format(i + 1, *bbox)
+        # final_instruction += "Look at {} of the image and answer the question based on the provided additional information (the Region of Interest, the Union Patch of Targets, and Sub-patches): \n".format(fit_relative_pos_star.lower())
+        final_instruction += "Sub-patch 1 at location <box>[[{:.2f}, {:.2f}, {:.2f}, {:.2f}]]</box>: <image>\n".format(*fit_coord)
+        if len(additional_roi_coord["object"]) > 0:
+            union_patch = additional_roi_coord["object"][-1]
+            final_instruction += "Sub-patch 2 at location <box>[[{:.2f}, {:.2f}, {:.2f}, {:.2f}]]</box>: <image>\n".format(*union_patch)
+            for i, bbox in enumerate(additional_roi_coord["object"][:-1]):
+                final_instruction += "Sub-patch {} at location <box>[[{:.2f}, {:.2f}, {:.2f}, {:.2f}]]</box>: <image>\n".format(i + 3, *bbox)
+        final_instruction += "Look at {} of the image and answer the question based on the provided additional information (location of sub-patches). \n".format(fit_relative_pos_star.lower())
         old_value = old_value.split('<image>\n')[-1]
         # final_instruction += "Here is a description of a region in the image: "
+        final_instruction += "Question: "
         final_instruction += old_value
-        final_instruction += " Could you provide the bounding box coordinate of the region described above?"
+        final_instruction += " Could you provide the location of the region described?"
         return final_instruction
 
     def generate_regioncaption_gpt(additional_roi_coord):
@@ -595,6 +593,7 @@ def process_final_regioncaption(intermediate_path, final_path):
         new_instruction["additional_roi_coord"] = instruction["additional_roi_coord"]
         new_conv = generate_regioncaption_conv(instruction["conversations"], instruction["additional_roi_coord"], instruction["fit_relative_pos_star"])
         new_instruction["conversations"] = new_conv
+        # new_instruction["additional_roi_coord"]["object"] = []
         modified_data.append(new_instruction)
 
     with open(final_path, 'w') as outfile:
@@ -603,33 +602,41 @@ def process_final_regioncaption(intermediate_path, final_path):
 
 
 def main():
-    cc_input_path = "/media/zilun/fanxiang4t/GRSM/ImageRAG_git/data/train/train_data_of_each_individual_task/train_instruction_complexcompare_708k.json"
-    cc_intermediate_path = "/media/zilun/fanxiang4t/GRSM/ImageRAG_git/data/train/cc_intermediate_5para_star_obb2_0-1000.json"
-    cc_final_path = "/media/zilun/fanxiang4t/GRSM/ImageRAG_git/data/train/cc_final_5para_star_obb2_0-1000.json"
+    
+    # fit_dataset_root = "/data1/zilun/grsm/FIT/FIT/FIT-RS/FIT-RS_Instruction/train_data_of_each_individual_task"
+    # star_stats_path = "/media/zilun/fanxiang4t/GRSM/ImageRAG_git/codebase/dataset_process/star_statistics.pkl"
+    # fit_img_dir = "/media/zilun/fanxiang4t/GRSM/evaluation_dataset/VQA_VG/FIT/FIT-RS/FIT-RS_Instruction/FIT-RS_Img/imgv2_split_512_100_vaild"
+    
+    fit_dataset_root = "/data1/zilun/grsm/FIT/FIT/FIT-RS/FIT-RS_Instruction/train_data_of_each_individual_task"
+    star_stats_path = "/data1/zilun/grsm/ImageRAG_git/codebase/dataset_process/star_statistics.pkl"
+    fit_img_dir = "/data1/zilun/grsm/FIT/FIT/FIT-RS/FIT-RS_Instruction/imgv2_split_512_100_vaild"
+    summary_final_path = "/data1/zilun/grsm/ImageRAG_git/data/train/AGMLLLM_final_5para_star_obb2_0-1000_withobb_subpatchprompt.jsonl"
 
-    vqa_input_path = "/media/zilun/fanxiang4t/GRSM/ImageRAG_git/data/train/train_data_of_each_individual_task/train_instruction_vqa_400k.json"
-    vqa_intermediate_path = "/media/zilun/fanxiang4t/GRSM/ImageRAG_git/data/train/vqa_intermediate_5para_star_obb2_0-1000.json"
-    vqa_final_path = "/media/zilun/fanxiang4t/GRSM/ImageRAG_git/data/train/vqa_final_5para_star_obb2_0-1000.json"
-
-    imageclassification_input_path = "/media/zilun/fanxiang4t/GRSM/ImageRAG_git/data/train/train_data_of_each_individual_task/train_instruction_imageclassification_130k.json"
-    imageclassification_intermediate_path = "/media/zilun/fanxiang4t/GRSM/ImageRAG_git/data/train/imageclassification_intermediate_5para_star_obb2_0-1000.json"
-    imageclassification_final_path = "/media/zilun/fanxiang4t/GRSM/ImageRAG_git/data/train/imageclassification_final_5para_star_obb2_0-1000.json"
-
-    multiturn_json_path = "/media/zilun/fanxiang4t/GRSM/ImageRAG_git/data/train/train_data_of_each_individual_task/train_instruction_multiturn_50k.json"
-    multiturn_intermediate_path = "/media/zilun/fanxiang4t/GRSM/ImageRAG_git/data/train/multiturn_intermediate_5para_star_obb2_0-1000.json"
-    multiturn_final_path = "/media/zilun/fanxiang4t/GRSM/ImageRAG_git/data/train/multiturn_final_5para_star_obb2_0-1000.json"
-
-    imagecaption_input_path = "/media/zilun/fanxiang4t/GRSM/ImageRAG_git/data/train/train_data_of_each_individual_task/train_instruction_imagecaption_65k.json"
-    imagecaption_intermediate_path = "/media/zilun/fanxiang4t/GRSM/ImageRAG_git/data/train/imagecaption_intermediate_5para_star_obb2_0-1000.json"
-    imagecaption_final_path = "/media/zilun/fanxiang4t/GRSM/ImageRAG_git/data/train/imagecaption_final_5para_star_obb2_0-1000.json"
-
-    regioncaption_input_path = "/media/zilun/fanxiang4t/GRSM/ImageRAG_git/data/train/train_data_of_each_individual_task/train_instruction_regioncaption_72k.json"
-    regioncaption_intermediate_path = "/media/zilun/fanxiang4t/GRSM/ImageRAG_git/data/train/regioncaption_intermediate_5para_star_obb2_0-1000.json"
-    regioncaption_final_path = "/media/zilun/fanxiang4t/GRSM/ImageRAG_git/data/train/regioncaption_final_5para_star_obb2_0-1000.json"
-
-    star_stats_path = "/media/zilun/fanxiang4t/GRSM/ImageRAG_git/codebase/dataset_process/star_statistics.pkl"
-    fit_img_dir = "/media/zilun/fanxiang4t/GRSM/evaluation_dataset/VQA_VG/FIT/FIT-RS/FIT-RS_Instruction/FIT-RS_Img/imgv2_split_512_100_vaild"
     star_stats = pkl.load(open(star_stats_path, "rb"))
+
+    cc_input_path = os.path.join(fit_dataset_root, "train_instruction_complexcompare_708k.json")
+    cc_intermediate_path = os.path.join(fit_dataset_root, "cc_intermediate_5para_star_obb2_0-1000.json")
+    cc_final_path = os.path.join(fit_dataset_root, "cc_final_5para_star_obb2_0-1000.json")
+
+    vqa_input_path = os.path.join(fit_dataset_root, "train_instruction_vqa_400k.json")
+    vqa_intermediate_path = os.path.join(fit_dataset_root, "vqa_intermediate_5para_star_obb2_0-1000.json")
+    vqa_final_path = os.path.join(fit_dataset_root, "vqa_final_5para_star_obb2_0-1000.json")
+
+    imageclassification_input_path = os.path.join(fit_dataset_root, "train_instruction_imageclassification_130k.json")
+    imageclassification_intermediate_path = os.path.join(fit_dataset_root, "imageclassification_intermediate_5para_star_obb2_0-1000.json")
+    imageclassification_final_path = os.path.join(fit_dataset_root, "imageclassification_final_5para_star_obb2_0-1000.json")
+
+    multiturn_json_path = os.path.join(fit_dataset_root, "train_instruction_multiturn_50k.json")
+    multiturn_intermediate_path = os.path.join(fit_dataset_root, "multiturn_intermediate_5para_star_obb2_0-1000.json")
+    multiturn_final_path = os.path.join(fit_dataset_root, "multiturn_final_5para_star_obb2_0-1000.json")
+
+    imagecaption_input_path = os.path.join(fit_dataset_root, "train_instruction_imagecaption_65k.json")
+    imagecaption_intermediate_path = os.path.join(fit_dataset_root, "imagecaption_intermediate_5para_star_obb2_0-1000.json")
+    imagecaption_final_path = os.path.join(fit_dataset_root, "imagecaption_final_5para_star_obb2_0-1000.json")
+
+    regioncaption_input_path = os.path.join(fit_dataset_root, "train_instruction_regioncaption_72k.json")
+    regioncaption_intermediate_path = os.path.join(fit_dataset_root, "regioncaption_intermediate_5para_star_obb2_0-1000.json")
+    regioncaption_final_path = os.path.join(fit_dataset_root, "regioncaption_final_5para_star_obb2_0-1000.json")
 
     process_intermediate(cc_input_path, star_stats, cc_intermediate_path, task_type="complex_compare")
     process_intermediate(vqa_input_path, star_stats, vqa_intermediate_path, task_type="vqa")
@@ -645,7 +652,6 @@ def main():
     process_final_imagecaption(imagecaption_intermediate_path, imagecaption_final_path)
     process_final_regioncaption(regioncaption_intermediate_path, regioncaption_final_path)
 
-    summary_final_path = "/media/zilun/fanxiang4t/GRSM/ImageRAG_git/data/train/AGMLLLM_final_5para_star_obb2_0-1000_noanswer.jsonl"
     jsons2jsonl([cc_final_path, vqa_final_path, imageclassification_final_path, multiturn_final_path, imagecaption_final_path, regioncaption_final_path], summary_final_path)
 
 
