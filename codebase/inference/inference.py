@@ -292,7 +292,7 @@ def eval_ComplexCompre(answer_file, param=None, group=None):
 
 
 if __name__ == "__main__":
-    inference()
+    # inference()
     
     # answer_file = "/data1/zilun/grsm/ImageRAG_git/data/eval/eval_FITRS_complex_comprehension_eval_5para_complete_obb1_100_512_star_inference_obb1_100_512_nondynamic.jsonl"
     # eval_ComplexCompre(answer_file, param=5, group="obb1")
@@ -305,6 +305,9 @@ if __name__ == "__main__":
     
     # answer_file = "/media/zilun/fanxiang4t/GRSM/ImageRAG_git/data/eval/eval_FITRS_complex_comprehension_eval_8para_complete_single_100_448_star_inference_single_100_448_dynamic.jsonl"
     # eval_ComplexCompre(answer_file, param=8, group="single")
+
+    answer_file = "/media/zilun/fanxiang4t/GRSM/ImageRAG_git/data/eval/test_FITRS_complex_comprehension_eval_5para_complete_star_1000_obb2_eval_5param_dynamic896_0-1000_obb2.jsonl"
+    eval_ComplexCompre(answer_file, param=5, group="obb2")
     
 
     

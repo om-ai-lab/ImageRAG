@@ -35,9 +35,9 @@ def get_keyword_response(client, model_name, query_input, generation_config):
     ext2parse = keyword_template.format(query_input)
 
     params = dict(
-        # temperature=generation_config['temperature'],
+        temperature=generation_config['temperature'],
         max_tokens=generation_config['max_tokens'],
-        # top_p=generation_config['top_p'],
+        top_p=generation_config['top_p'],
         timeout=generation_config['timeout'],
         # do_sample=True
     )
