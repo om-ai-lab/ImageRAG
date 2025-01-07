@@ -4,7 +4,7 @@ import re
 import argparse
 from tqdm import tqdm 
 parser = argparse.ArgumentParser()
-parser.add_argument("--results_file", type=str, default='')
+parser.add_argument("--results_file", type=str, default='/media/zilun/fanxiang4t/GRSM/ImageRAG_git/codebase/inference/MME-RealWorld-RS/answer_mme-realworld-rs.jsonl')
 args = parser.parse_args()
 
 TASKS = [
@@ -13,10 +13,10 @@ TASKS = [
 ]
 
 SUBTASKS = [
-    "Monitoring",
-    "OCR with Complex Context",
-    "Diagram and Table",
-    "Autonomous_Driving",
+    # "Monitoring",
+    # "OCR with Complex Context",
+    # "Diagram and Table",
+    # "Autonomous_Driving",
     'Remote Sensing'
 ]
 
@@ -73,7 +73,7 @@ for question in tqdm(data):
     Category = question['Category'].lower()
     question_id = question["Question_id"]
     ground_truth = question["Ground truth"]
-    text = question["Output"]
+    text = question["output"]
     
     if 'attribute' in Category.lower():
         Category = Category.split('/')[0] + '/attribute'

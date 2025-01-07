@@ -192,7 +192,7 @@ def eval_model(args):
                 tokenizer,
                 image_tensors,
                 num_patches_list=num_patches_list,
-                questions=question_text_only_list,
+                questions=prompts,
                 generation_config=generation_config
             )
         for i, response in enumerate(responses):
