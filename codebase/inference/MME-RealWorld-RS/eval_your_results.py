@@ -4,7 +4,7 @@ import re
 import argparse
 from tqdm import tqdm 
 parser = argparse.ArgumentParser()
-parser.add_argument("--results_file", type=str, default='/media/zilun/fanxiang4t/GRSM/ImageRAG_git/codebase/inference/MME-RealWorld-RS/answer_mme-realworld-rs.jsonl')
+parser.add_argument("--results_file", type=str, default='/media/zilun/fanxiang4t/GRSM/ImageRAG_git/codebase/inference/MME-RealWorld-RS/answer_mme-realworld-rs-bsn-fit896obb2dynamic.jsonl')
 args = parser.parse_args()
 
 TASKS = [
