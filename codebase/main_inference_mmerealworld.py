@@ -35,6 +35,10 @@ from codebase.cc_algo import img_2patch, vis_patches
 from codebase.text_parser import extract_key_phrases
 
 
+
+# export PYTHONPATH=$PYTHONPATH:/data1/zilun/grsm/ImageRAG_git
+# export PYTHONPATH=$PYTHONPATH:/media/zilun/fanxiang4t/GRSM/ImageRAG_git
+
 Image.MAX_IMAGE_PIXELS = None
 
 
@@ -146,8 +150,7 @@ def image_rag(config, generative_vlm_pack, contrastive_vlm_pack, line, client, l
     if not kw_model_config:
         kw_model_config = paraphrase_model_config
         while True:
-            query_keywords = get_keyword_response(client, kw_model_config['model_path'], paraphrase_result,
-                                                  kw_model_config['generation_config'])
+            query_keywords = get_keyword_response(client, kw_model_config['model_path'], paraphrase_result, kw_model_config['generation_config'])
             try:
                 query_keywords = eval(query_keywords)
                 break
@@ -188,6 +191,7 @@ def image_rag(config, generative_vlm_pack, contrastive_vlm_pack, line, client, l
     logger.info("Ranked Patch Shape: {}".format(ranked_patch.shape))
     logger.info("Corresponding similarity: {}".format(corresponding_similarity))
 
+    pdb.set_trace()
 
     # Slow Path
     if max(corresponding_similarity) < fast_path_T:
@@ -303,8 +307,6 @@ def inference():
 
     parser = argparse.ArgumentParser(description='Process some integers.')
     parser.add_argument('--cfg_path', type=str, default='/media/zilun/fanxiang4t/GRSM/ImageRAG_git/config/config_internvl8b_5hbb_448_dynamic_0-1000_mmerealworld.yaml', help='Path to the configuration file.')
-    parser.add_argument("--answers-file", type=str, default="/media/zilun/fanxiang4t/GRSM/ImageRAG_git/data/answer_mme-realworld-rs_test.jsonl")
-    parser.add_argument('--query_text', type=str, default='Suppose the top of this image represents north. How many aircraft are heading northeast? What is the color of the building rooftop to their southeast?', help='Path to the configuration file.')
     parser.add_argument('--log_dir', type=str, default='./log', help='Path to the log file.')
     parser.add_argument('--base_url', type=str, default='http://127.0.0.1:30000/v1', help='base url')
 
@@ -337,7 +339,7 @@ def inference():
         questions = json.load(file)
     questions = [question for question in questions if question["Subtask"] == "Remote Sensing"]
     questions = get_chunk(questions, config['num_chunks'], config['chunk_idx'])
-    answers_file = os.path.expanduser(args.answers_file)
+    answers_file = os.path.expanduser(config['answers_file_path'])
     os.makedirs(os.path.dirname(answers_file), exist_ok=True)
     ans_file = open(answers_file, "w")
 

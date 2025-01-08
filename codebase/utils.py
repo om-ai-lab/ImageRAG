@@ -182,7 +182,7 @@ def extract_vlm_img_text_feat(query, key_text, coordinate_patchname_dict, patch_
         # text_content = [text_tokenizer(query)] + [text_tokenizer(f"a photo of the {c}") for c in key_text]
         # text_content = [text_tokenizer(f"a photo of the {c}") for c in key_text]
         # text_content = [text_tokenizer(query)]
-        prompt = "a photo includes"
+        prompt = "a photo includes "
         for c in key_text:
             # c = c.replace("the ", "")
             if c != key_text[-1]:
