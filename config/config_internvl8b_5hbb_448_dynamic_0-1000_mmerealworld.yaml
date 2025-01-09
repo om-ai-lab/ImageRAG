@@ -10,7 +10,7 @@ input_image_dir:
 patch_saving_dir:
   "patch_save_dir"
 
-model_input_image_size:
+generative_vlm_input_image_size:
   448
 
 use_dynamic:
@@ -56,6 +56,9 @@ kw_model:
 
 text_expansion_model:
 
+text_embed_model:
+    model_path:
+      "/media/zilun/wd-161/hf_download/all-MiniLM-L6-v2"
 
 fast_vlm_model:
     model_name:
@@ -83,15 +86,15 @@ llmvqa_model:
 
 vector_database:
     meta_pkl_path:
-        "/media/zilun/mx500/ImageRAG_database/cropped_img/meta_df.pkl"
+        "/media/zilun/fanxiang4t/GRSM/ImageRAG_git/data/georsclip_feat_label_all_server.pkl"
     img_dir:
       "/media/zilun/mx500/ImageRAG_database/cropped_img"
     text_vector_database_dir:
-      "/media/zilun/fanxiang4t/GRSM/IRAG/imageRAG/codebase/vector_database/text_vector_database"
+      "/media/zilun/fanxiang4t/GRSM/IRAG/ImageRAG_git/codebase/vector_database/text_vector_database"
     image_vector_database_dir:
-      "/media/zilun/fanxiang4t/GRSM/IRAG/imageRAG/codebase/vector_database/image_vector_database"
+      "/media/zilun/fanxiang4t/GRSM/IRAG/ImageRAG_git/codebase/vector_database/image_vector_database"
     mm_vector_database_dir:
-      "/media/zilun/fanxiang4t/GRSM/IRAG/imageRAG/codebase/vector_database/mm_vector_database"
+      "/media/zilun/fanxiang4t/GRSM/IRAG/ImageRAG_git/codebase/vector_database/mm_vector_database"
 
 question_file_path:
   "/media/zilun/fanxiang4t/GRSM/ImageRAG_git/codebase/inference/MME-RealWorld-RS/MME_RealWorld.json"

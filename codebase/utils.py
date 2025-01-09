@@ -24,7 +24,7 @@ IMAGENET_MEAN = (0.485, 0.456, 0.406)
 IMAGENET_STD = (0.229, 0.224, 0.225)
 
 
-def build_transform(input_size):
+def build_generative_vlm_transform(input_size):
     MEAN, STD = IMAGENET_MEAN, IMAGENET_STD
     transform = T.Compose([
         T.Lambda(lambda img: img.convert('RGB') if img.mode != 'RGB' else img),
@@ -88,24 +88,6 @@ def dynamic_preprocess(image, min_num=1, max_num=12, image_size=448, use_thumbna
         thumbnail_img = image.resize((image_size, image_size))
         processed_images.append(thumbnail_img)
     return processed_images
-
-
-def load_image(image_file, input_size=448, max_num=12, use_dynamic=True):
-    # image path
-    if type(image_file) == str:
-        image = Image.open(image_file).convert('RGB')
-    # image file
-    else:
-        image = image_file
-    transform = build_transform(input_size=input_size)
-    if use_dynamic:
-        images = dynamic_preprocess(image, image_size=input_size, use_thumbnail=True, max_num=max_num)
-        print("Use Dynamic")
-    else:
-        images = [image]
-    pixel_values = [transform(image) for image in images]
-    pixel_values = torch.stack(pixel_values)
-    return pixel_values
 
 
 def obb2poly_np_oc(rbboxes):
@@ -236,7 +218,7 @@ def setup_slow_text_encoder_model(model_path, device):
     tokenizer = AutoTokenizer.from_pretrained(model_path)
     return model, tokenizer
 
-def setup_vqallm(llmvqa_model_path, llmvqa_model_name, generation_config, device):
+def setup_vqallm(llmvqa_model_path, llmvqa_model_name, generation_config, input_size, device):
     if "llava-onevision-qwen2-0.5b-ov" in llmvqa_model_name.lower():
         from codebase.vqa_llm.vaq_llm import VQA_LLM
         import warnings
@@ -268,7 +250,8 @@ def setup_vqallm(llmvqa_model_path, llmvqa_model_name, generation_config, device
         #     max_new_tokens=1024,
         #     do_sample=False
         # )
-        return model, tokenizer, generation_config, load_image
+        generative_vlm_transform = build_generative_vlm_transform(input_size)
+        return model, tokenizer, generation_config, dynamic_preprocess, generative_vlm_transform
 
 
 def split_list(lst, n):
@@ -530,7 +513,7 @@ def img_reduce(cls_img_dict, vlm, img_preprocess, reduce_fn="mean"):
     def batch_inference_clip_vision_encoder(cls_img_dataloader):
         with torch.no_grad(), torch.cuda.amp.autocast():
             image_feature_list = []
-            for batch_img, bbox_coordinate in tqdm(cls_img_dataloader):
+            for batch_img in tqdm(cls_img_dataloader):
                 batch_img = batch_img.to(device)
                 image_features = vlm.encode_image(batch_img)
                 image_feature_list.append(image_features)
@@ -552,7 +535,7 @@ def img_reduce(cls_img_dict, vlm, img_preprocess, reduce_fn="mean"):
 
     return cls_feat_dict
 
-def ranking_patch_visualcue2patch(bbox_coordinate_list, visualcue2patch_similarity, top_k=10):
+def ranking_patch_visualcue2patch(bbox_coordinate_list, visualcue2patch_similarity, top_k=5):
     values, index = visualcue2patch_similarity.topk(top_k)
     # should be 5 * 3 = 15 candidates
     # top1patch_per_keyphrase = values[:, :1].flatten().tolist()
@@ -592,11 +575,27 @@ def ranking_patch_visualcue2patch(bbox_coordinate_list, visualcue2patch_similari
     selected_bbox_coordinate_list = np.array(bbox_coordinate_list)[candidate_index]
     return selected_bbox_coordinate_list, candidate_similarity
 
+
+def reduce_visual_cue_per_cls(visual_cue_candidates_dict, reduce_fn):
+    reduced_visual_cue_candidates_dict = dict()
+    if reduce_fn == "mean":
+        for class_label in tqdm(visual_cue_candidates_dict):
+            reduced_visual_cue_candidates_dict[class_label] = visual_cue_candidates_dict[class_label].mean(0)
+
+    return reduced_visual_cue_candidates_dict
+
+
 def select_visual_cue(vlm_image_feats, bbox_coordinate_list, visual_cue_candidates_dict, need_feat_normalize=True):
     # (166, 512)
     patch_feats = vlm_image_feats.detach().cpu().type(torch.float32)
+
     # (3, 512)
-    visual_cue_feats = visual_cue_candidates_dict.values().detach().cpu().type(torch.float32)
+    visual_cue_candidates_stacked = []
+    for visual_cue_candidates in visual_cue_candidates_dict:
+        visual_cue_candidates_stacked.append(visual_cue_candidates_dict[visual_cue_candidates].detach().cpu().type(torch.float32).unsqueeze(0))
+    visual_cue_candidates_stacked = torch.cat(visual_cue_candidates_stacked)
+    visual_cue_feats = visual_cue_candidates_stacked
+
     with torch.no_grad(), torch.cuda.amp.autocast():
         if need_feat_normalize:
             patch_feats /= patch_feats.norm(dim=-1, keepdim=True)
@@ -605,6 +604,47 @@ def select_visual_cue(vlm_image_feats, bbox_coordinate_list, visual_cue_candidat
 
     visual_cues = ranking_patch_visualcue2patch(bbox_coordinate_list, visualcue2patch_similarity)
     return visual_cues
+
+
+def setup_text_vsd(config):
+    from langchain.vectorstores import Chroma, FAISS
+    from langchain_huggingface import HuggingFaceEmbeddings
+
+    # Create Chroma vector store
+    slow_text_emb_model_path = config["text_embed_model"]["model_path"]
+    text_embeddings = HuggingFaceEmbeddings(model_name=slow_text_emb_model_path)
+    text_vectorstore = Chroma(
+        collection_name="vector_store4keyphrase_label_matching",
+        embedding_function=text_embeddings,
+        persist_directory=config["vector_database"]["text_vector_database_dir"],
+        # Where to save data locally, remove if not necessary
+    )
+
+    meta_pkl_path = config["vector_database"]["meta_pkl_path"]
+    # 'img_name_list' 'label_list' 'feat'
+    vector_database_content = pkl.load(open(meta_pkl_path, "rb"))
+    assert len(vector_database_content["img_name_list"]) == len(vector_database_content["label_list"]) == len(
+        vector_database_content["feat"])
+    imgname2label_dict = dict()
+    label2imgname_dict = dict()
+    imgname2feat_dict = dict()
+
+    for i in tqdm(range(len(vector_database_content["img_name_list"]))):
+        img_name = vector_database_content["img_name_list"][i]
+        label = vector_database_content["label_list"][i].lower()
+        feat = vector_database_content["feat"][i]
+        imgname2label_dict[img_name] = label
+        if label not in label2imgname_dict:
+            label2imgname_dict[label] = [img_name]
+        else:
+            label2imgname_dict[label].append(img_name)
+        imgname2feat_dict[img_name] = feat
+
+    labels_in_database = list(label2imgname_dict.keys())
+    meta = [{'type': 'text'}] * len(labels_in_database)
+    text_vectorstore.add_texts(texts=labels_in_database, metadatas=meta)
+
+    return text_vectorstore, label2imgname_dict, imgname2label_dict, imgname2feat_dict
 
 
 class VanillaDataset(Dataset):

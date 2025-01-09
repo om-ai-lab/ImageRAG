@@ -22,6 +22,7 @@ Task: Extract keywords or key phrases from a given query sentence.
 Guidelines: 
 - Analyze the sentence and identify the important keywords or phrases. These words or phrases should represent the core content or main information of the sentence. 
 - Ensure that the extracted words or phrases are meaningful and can be used to quickly understand the main idea of the sentence.
+- Focus on the names of ground targets in the view of remote sensing. Include the phrases that describe size, shape, color, texture, and spatial relation of them.
 
 Example:
 Input query:  "How many aircraft are heading in the up-right direction? What is the color of the building rooftop below them?"

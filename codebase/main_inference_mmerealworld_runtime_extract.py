@@ -1,7 +1,5 @@
 import pdb
 import shutil
-
-import pandas as pd
 from tqdm import tqdm
 import os
 import uuid
@@ -30,10 +28,9 @@ from codebase.utils import (setup_vlm_model, set_up_paraphrase_model, setup_vqal
                             calculate_similarity_matrix, extract_vlm_img_text_feat, ranking_patch_t2p,
                             paraphrase_model_inference, text_expand_model_inference, setup_logger, meta_df2clsimg_dict,
                             img_reduce, select_visual_cue, ranking_patch_visualcue2patch, load_yaml, get_chunk,
-                            convert_obb_to_region_str, obb2minhbb, sole_visualcue2mergedvisualcue, visualcue2imagepatch,
-                            reduce_visual_cue_per_cls, setup_text_vsd)
+                            convert_obb_to_region_str, obb2minhbb, sole_visualcue2mergedvisualcue, visualcue2imagepatch)
 from codebase.sglang_util import get_paraphase_response, get_keyword_response, get_text_expansion_response
-from codebase.utils import load_yaml
+from codebase.utils import load_yaml, load_image
 from codebase.cc_algo import img_2patch, vis_patches
 from codebase.text_parser import extract_key_phrases
 
@@ -52,9 +49,9 @@ def collate_fn(batch):
 
 
 # DataLoader
-def create_data_loader(questions, image_folder, tokenizer, dynamic_preprocess, transform, model_config, batch_size=1, num_workers=0, prompt=''):
+def create_data_loader(questions, image_folder, tokenizer, image_processor, model_config, batch_size=1, num_workers=0, prompt=''):
     # assert batch_size == 1, "batch_size must be 1"
-    dataset = InternVLMMERSDataset(questions, image_folder, tokenizer, dynamic_preprocess, transform, model_config, prompt)
+    dataset = CustomDataset(questions, image_folder, tokenizer, image_processor, model_config, prompt)
     data_loader = DataLoader(dataset, batch_size=batch_size, num_workers=num_workers, shuffle=False, collate_fn=collate_fn)
     return data_loader
 
@@ -71,16 +68,14 @@ def get_chunk(lst, n, k):
 
 
 # Custom dataset class
-class InternVLMMERSDataset(Dataset):
-    def __init__(self, questions, image_folder, tokenizer, dynamic_preprocess, transform, model_config, prompt, use_dynamic=True):
+class CustomDataset(Dataset):
+    def __init__(self, questions, image_folder, tokenizer, load_image, model_config, prompt):
         self.questions = questions
         self.image_folder = image_folder
         self.tokenizer = tokenizer
-        self.transform = transform
-        self.dynamic_preprocess = dynamic_preprocess
+        self.load_image = load_image
         self.model_config = model_config
         self.prompt = prompt
-        self.use_dynamic = use_dynamic
 
     def __getitem__(self, index):
         line = self.questions[index]
@@ -94,32 +89,12 @@ class InternVLMMERSDataset(Dataset):
         prompt = qs
 
         image_path = os.path.join(self.image_folder, image_file)
-
-        # pixel_values = self.load_image(
-        #     image_path,
-        #     transform=transform,
-        #     input_size=self.model_config.vision_config.image_size,
-        #     max_num=self.model_config.max_dynamic_patch,
-        #     use_dynamic=True
-        # ).to(torch.bfloat16).cuda()
-
-        if type(image_path) == str:
-            image = Image.open(image_path).convert('RGB')
-        # image file
-        else:
-            image = image_path
-        if self.use_dynamic:
-            images = self.dynamic_preprocess(
-                image,
-                image_size=self.model_config.vision_config.image_size,
-                use_thumbnail=self.model_config.use_thumbnail,
-                max_num=self.model_config.max_dynamic_patch
-            )
-            print("Use Dynamic")
-        else:
-            images = [image]
-        pixel_values = [self.transform(image) for image in images]
-        pixel_values = torch.stack(pixel_values).to(torch.bfloat16).cuda()
+        pixel_values = load_image(
+            image_path,
+            input_size=self.model_config.vision_config.image_size,
+            max_num=self.model_config.max_dynamic_patch,
+            use_dynamic=True
+        ).to(torch.bfloat16).cuda()
 
         return pixel_values, prompt, pixel_values.size(0), line["Text"], line
 
@@ -127,7 +102,8 @@ class InternVLMMERSDataset(Dataset):
         return len(self.questions)
 
 
-def image_rag(config, contrastive_vlm_pack, line, client, logger, text_vectorstore, vsd_label2imgname_dict, vsd_imgname2label_dict, vsd_imgname2feat_dict, text_paraphrase, text_expand):
+def image_rag(config, generative_vlm_pack, contrastive_vlm_pack, line, client, logger, paraphrase=True):
+    generative_vlm_model, generative_vlm_tokenizer, generative_vlm_generation_config, generative_vlm_load_image = generative_vlm_pack
     # responses = image_rag(config, generative_vlm, generative_vlm_tokenizer, generative_vlm_generation_config, image_tensors, prompts, num_patches_list, question_text_only_list, line, client, logger, paraphrase=False)
 
     patch_saving_dir = config['patch_saving_dir']
@@ -158,7 +134,9 @@ def image_rag(config, contrastive_vlm_pack, line, client, logger, text_vectorsto
     #     use_dynamic=True
     # ).to(torch.bfloat16).cuda()
 
-    if text_paraphrase:
+    visual_cues = []
+
+    if paraphrase:
         paraphrase_result = get_paraphase_response(
             client,
             config['paraphrase_model']['model_path'],
@@ -188,9 +166,8 @@ def image_rag(config, contrastive_vlm_pack, line, client, logger, text_vectorsto
     # patchify -> padded image and dict of bbox - patch save name
     img_resize, coordinate_patchname_dict = img_2patch(
         input_uhr_image,
-        c_denom=2,
+        c_denom=10,
         dump_imgs=True,
-        # dump_imgs=False, Not working
         patch_saving_dir=patch_saving_dir
     )
     logger.info(
@@ -210,30 +187,26 @@ def image_rag(config, contrastive_vlm_pack, line, client, logger, text_vectorsto
     )
 
     t2p_similarity = calculate_similarity_matrix(vlm_image_feats, vlm_text_feats, fast_path_vlm.logit_scale.exp())
-    visual_cue, corresponding_similarity = ranking_patch_t2p(bbox_coordinate_list, t2p_similarity, top_k=5)
-    logger.info("Ranked Patch Shape: {}".format(visual_cue.shape))
+    ranked_patch, corresponding_similarity = ranking_patch_t2p(bbox_coordinate_list, t2p_similarity, top_k=5)
+    logger.info("Ranked Patch Shape: {}".format(ranked_patch.shape))
     logger.info("Corresponding similarity: {}".format(corresponding_similarity))
 
     # pdb.set_trace()
 
     # Slow Path
     if max(corresponding_similarity) < fast_path_T:
+        from langchain.vectorstores import Chroma, FAISS
+        from langchain_huggingface import HuggingFaceEmbeddings
         logger.info("fast path similarity does not meet the threshold, choose the slow path")
 
-        if text_expand:
-            if not text_expansion_model_config:
-                text_expansion_model_config = paraphrase_model_config
-                expanded_query_text_dict = get_text_expansion_response(client, text_expansion_model_config['model_path'],
-                                                                       query_keywords,
-                                                                       text_expansion_model_config['generation_config'])
-            else:
-                print("Not Implemented")
-                exit()
+        if not text_expansion_model_config:
+            text_expansion_model_config = paraphrase_model_config
+            expanded_query_text_dict = get_text_expansion_response(client, text_expansion_model_config['model_path'],
+                                                                   query_keywords,
+                                                                   text_expansion_model_config['generation_config'])
         else:
-            expanded_query_text_dict = dict()
-            for query_keyword in query_keywords:
-                expanded_query_text_dict[query_keyword] = query_keyword
-
+            print("Not Implemented")
+            exit()
         # Uncomment if not use phrase expansion
         # expanded_query_text_list = query_keywords
 
@@ -244,7 +217,24 @@ def image_rag(config, contrastive_vlm_pack, line, client, logger, text_vectorsto
         #     persist_directory=config["vector_database"]["mm_vector_database_dir"],
         #     collection_metadata = {"hnsw:space": "cosine"}
         # )
-        selected_label_names = []
+
+        # Create Chroma vector store
+        slow_text_emb_model_path = config["text_embed_model"]["model_path"]
+        text_embeddings = HuggingFaceEmbeddings(model_name=slow_text_emb_model_path)
+        text_vectorstore = Chroma(
+            collection_name="vector_store4keyphrase_label_matching",
+            embedding_function=text_embeddings,
+            persist_directory=config["vector_database"]["text_vector_database_dir"],
+            # Where to save data locally, remove if not necessary
+        )
+
+        meta_pkl_path = config["vector_database"]["meta_pkl_path"]
+        meta_vector_database_df = pkl.load(open(meta_pkl_path, "rb"))
+        labels_in_database = list(set(meta_vector_database_df["label_list"].tolist()))
+        meta = [{'type': 'text'}] * len(labels_in_database)
+        text_vectorstore.add_texts(texts=labels_in_database, metadatas=meta)
+
+        selected_label_name = []
         for expanded_query_text in expanded_query_text_dict:
             results = text_vectorstore.similarity_search_with_score(
                 expanded_query_text, k=5
@@ -252,53 +242,33 @@ def image_rag(config, contrastive_vlm_pack, line, client, logger, text_vectorsto
             for res, score in results:
                 # * [SIM=1.726390] The stock market is down 500 points today due to fears of a recession. [{'source': 'news'}]
                 print(f"Query:={expanded_query_text_dict[expanded_query_text]} * [SIM={score:3f}] {res.page_content}")
-                selected_label_names.append(res.page_content)
-        selected_label_name = list(set(selected_label_names))
-        print(selected_label_names)
+                selected_label_name.append(res.page_content)
+            print()
+        selected_label_name = list(set(selected_label_name))
+        meta_vector_database_df_selected = meta_vector_database_df[
+            meta_vector_database_df['cls_list'].isin(selected_label_name)]
+        reduced_img_group = meta_df2clsimg_dict(meta_vector_database_df_selected, config['vector_database']['img_dir'])
 
-        # img_name_selected_per_cls = [vsd_label2imgname_dict[label] for label in selected_label_name]
+        visual_cue_candidates_dict = img_reduce(reduced_img_group, fast_path_vlm, img_preprocess)
+        visual_cue = select_visual_cue(vlm_image_feats, bbox_coordinate_list, visual_cue_candidates_dict)
+        visual_cues.append(visual_cue)
 
-        # label -> feats dict
-        visual_cue_candidates_dict = dict()
+    else:
+        visual_cues.append(ranked_patch)
 
-        for label in selected_label_name:
-            img_feat_selected_per_cls = []
-            img_names = vsd_label2imgname_dict[label]
-            for img_name in img_names:
-                feat = vsd_imgname2feat_dict[img_name].unsqueeze(0)
-                img_feat_selected_per_cls.append(feat)
-            img_feat_selected_per_cls = torch.cat(img_feat_selected_per_cls)
-            visual_cue_candidates_dict[label] = img_feat_selected_per_cls
+    if len(visual_cues) == 0:
+        visual_cues.append([0, 0, width, height])
 
-        reduced_visual_cue_per_cls = reduce_visual_cue_per_cls(visual_cue_candidates_dict, reduce_fn="mean")
+    return visual_cues, question_with_test_template
 
-        # meta_vector_database_df_selected = meta_vector_database_df[meta_vector_database_df['label_list'].isin(selected_label_name)]
-        # reduced_img_group = meta_df2clsimg_dict(meta_vector_database_df_selected, config['vector_database']['img_dir'])
-        # visual_cue_candidates_dict = img_reduce(reduced_img_group, fast_path_vlm, img_preprocess)
-
-        visual_cue, visual_cue_similarity = select_visual_cue(vlm_image_feats, bbox_coordinate_list, reduced_visual_cue_per_cls)
-
-        # visual_cues.append(visual_cue)
-    # else:
-    #     visual_cues.append(visual_cue)
-    # if len(visual_cues) == 0:
-    #     visual_cues.append(np.array([0, 0, width, height]))
-
-    return image_path, visual_cue, question_with_test_template
-
-
-def inference_internvl(config, questions, ans_file_path, contrastive_vlm_pack, generative_vlm_pack, client, logger):
+def inference_internvl(config, questions, ans_file, contrastive_vlm_pack, generative_vlm_pack, client, logger):
     # TODO: only works for InternVL model, Batch_Size=1
-    ans_file = open(ans_file_path, "w")
-    generative_vlm, generative_vlm_tokenizer, generative_vlm_generation_config, generative_vlm_dynamic_preprocess, generative_vlm_transform = generative_vlm_pack
+    generative_vlm, generative_vlm_tokenizer, generative_vlm_generation_config, generative_vlm_load_image = generative_vlm_pack
     index = 0
     if config["mode"] == "baseline":
-        data_loader = create_data_loader(
-            questions, config["input_image_dir"],
-            generative_vlm_tokenizer, generative_vlm_dynamic_preprocess,
-            generative_vlm_transform, generative_vlm.config,
-            config["batch_size"], prompt=config["test_prompt"]
-        )
+        data_loader = create_data_loader(questions, config["input_image_dir"], generative_vlm_tokenizer,
+                                         generative_vlm_load_image, generative_vlm.config, config["batch_size"],
+                                         prompt=config["test_prompt"])
         for (image_tensors, prompts, num_patches_list, question_text_only_list, line) in tqdm(data_loader):
             with torch.inference_mode():
                 responses = generative_vlm.batch_chat(
@@ -319,68 +289,17 @@ def inference_internvl(config, questions, ans_file_path, contrastive_vlm_pack, g
 
     elif config["mode"] == "imagerag":
         # imagerag does not support parallel inference
-        text_vectorstore, vsd_label2imgname_dict, vsd_imgname2label_dict, vsd_imgname2feat_dict = setup_text_vsd(config)
         assert config["batch_size"] == 1
         for line in questions:
-            image_path, visual_cues, question_with_test_template = image_rag(
-                config, contrastive_vlm_pack, line, client, logger,
-                text_vectorstore, vsd_label2imgname_dict, vsd_imgname2label_dict, vsd_imgname2feat_dict,
-                text_paraphrase=False, text_expand=False
-            )
-            images, tile_num_list = [], []
-            global_and_locals = []
-            image = Image.open(image_path).convert('RGB')
-            global_and_locals.append(image)
-            for object_coord in visual_cues:
-                image_crop = image.crop(object_coord)
-                global_and_locals.append(image_crop)
-
-            for i, image in enumerate(global_and_locals):
-                if i == 0:
-                    image = generative_vlm_dynamic_preprocess(
-                        image,
-                        max_num=generative_vlm.config.max_dynamic_patch,
-                        image_size=generative_vlm.config.vision_config.image_size,
-                        use_thumbnail=generative_vlm.config.use_thumbnail,
-                    )
-                    images += image
-                    tile_num_list.append(len(image))
-                else:
-                    images.append(image)
-                    tile_num_list.append(1)
-
-            pixel_values = [generative_vlm_transform(image) for image in images]
-            pixel_values = torch.stack(pixel_values)
-            num_patches = pixel_values.size(0)
-
-            final_instruction = "<image>\n"
-            final_instruction += "Additional information:\n"
-            for i, bbox in enumerate(visual_cues):
-                final_instruction += "Sub-patch {} at location <box>[[{:.2f}, {:.2f}, {:.2f}, {:.2f}]]</box>: <image>\n".format(i + 1, *bbox)
-            final_instruction += "Look at the image and answer the question based on the provided additional information (location of sub-patches) \n"
-            final_instruction += "Question: "
-            final_instruction += question_with_test_template
-
-            with torch.inference_mode():
-                # TODO: visual cues contain full image, duplicate
-                responses = generative_vlm.batch_chat(
-                    generative_vlm_tokenizer,
-                    pixel_values,
-                    num_patches_list=tile_num_list,
-                    questions=final_instruction,
-                    generation_config=generative_vlm_generation_config
-                )
-
-            for i, (response) in enumerate(responses):
-                if index % 100 == 0:
-                    print(f'Prompt: {question_with_test_template}\n\n Output: {response}')
-                line[i]['output'] = response
-                ans_file.write(json.dumps(line[i]) + "\n")
-                ans_file.flush()
-                index += 1
+            responses = image_rag(config, generative_vlm_pack, contrastive_vlm_pack, line, client, logger, paraphrase=False)
+        for i, (response, question_with_test_template) in enumerate(responses):
+            if index % 100 == 0:
+                print(f'Prompt: {question_with_test_template}\n\n Output: {response}')
+            line[i]['output'] = response
+            ans_file.write(json.dumps(line[i]) + "\n")
+            ans_file.flush()
+            index += 1
         ans_file.close()
-
-    return ans_file_path
 
 
 def inference():
@@ -405,6 +324,7 @@ def inference():
     llmvqa_model_path = config['llmvqa_model']['model_path']
     # fast_path_vlm, img_preprocess, text_tokenizer
     contrastive_vlm_pack = setup_vlm_model(fast_vlm_model_path, fast_vlm_model_name, device)
+    # model, tokenizer, generation_config, load_image
     generative_vlm_generation_config = dict(
         max_new_tokens=config["llmvqa_model"]["generation_config"]["max_tokens"],
         do_sample=True if config["llmvqa_model"]["generation_config"]["temperature"] > 0 else False,
@@ -412,7 +332,7 @@ def inference():
         top_p=config["llmvqa_model"]["generation_config"]["top_p"],
         num_beams=config["llmvqa_model"]["generation_config"]["num_beams"],
     )
-    generative_vlm_pack = setup_vqallm(llmvqa_model_path, llmvqa_model_name, generative_vlm_generation_config, config["generative_vlm_input_image_size"], device=device)
+    generative_vlm_pack = setup_vqallm(llmvqa_model_path, llmvqa_model_name, generative_vlm_generation_config, device=device)
     client = openai.Client(base_url=args.base_url, api_key="None")
 
     with open(config['question_file_path'], 'r') as file:
@@ -421,10 +341,10 @@ def inference():
     questions = get_chunk(questions, config['num_chunks'], config['chunk_idx'])
     answers_file = os.path.expanduser(config['answers_file_path'])
     os.makedirs(os.path.dirname(answers_file), exist_ok=True)
-
+    ans_file = open(answers_file, "w")
 
     if "InternVL" in llmvqa_model_path:
-        answers_file = inference_internvl(config, questions, answers_file, contrastive_vlm_pack, generative_vlm_pack, client, logger)
+        answers_file = inference_internvl(config, questions, ans_file, contrastive_vlm_pack, generative_vlm_pack, client, logger)
         print(answers_file)
 
 

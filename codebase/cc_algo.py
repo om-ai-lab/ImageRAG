@@ -48,14 +48,15 @@ def whrange2bbox(w_range, h_range):
 def vis_patches(save_dir, patch_coordinates, img_resize):
     assert isinstance(patch_coordinates, list)
     coordinate_patchname_dict = dict()
-    for level_index, level_content in enumerate(patch_coordinates):
+    for level_index, level_content in enumerate(tqdm(patch_coordinates)):
         for patch_index, patch_coordinate in enumerate(level_content):
             h_range, w_range = patch_coordinate
             crop_box = (w_range[0], h_range[0], w_range[1], h_range[1])
             patch_img = img_resize.crop(crop_box)
             patch_save_name = "patchlevel-{}_patch-{}.png".format(level_index, patch_index)
             patch_img.save(os.path.join(save_dir, patch_save_name))
-            patch_bbox_coordinate = whrange2bbox(w_range, h_range)
+            # patch_bbox_coordinate = whrange2bbox(w_range, h_range)
+            patch_bbox_coordinate = crop_box
             coordinate_patchname_dict[patch_bbox_coordinate] = patch_save_name
     return coordinate_patchname_dict
 
@@ -67,8 +68,8 @@ def img_2patch(img, c_denom=10, dump_imgs=False, patch_saving_dir=None):
     :param img: img torch tensor
     :return: list of bbox (tl_x, tl_r, w, h), each represents a patch (cover)
     """
-
-    assert patch_saving_dir is not None if dump_imgs else False
+    if dump_imgs:
+        assert patch_saving_dir is not None
 
     w, h = img.size
     if h % c_denom != 0:
@@ -106,7 +107,7 @@ def img_2patch(img, c_denom=10, dump_imgs=False, patch_saving_dir=None):
         stride_w = floor(kernel_w - (kernel_w - c_w) / c_w)
         img_patches = return_sliding_windows(img_resize, kernel_h, kernel_w, stride_h, stride_w)
         patch_container.append(img_patches)
-        # print("level: {}, kernel h: {}, kernel w: {}, stride h: {}, stride w: {}".format(n, kernel_h, kernel_w, stride_h, stride_w))
+        print("level: {}, kernel h: {}, kernel w: {}, stride h: {}, stride w: {}".format(n, kernel_h, kernel_w, stride_h, stride_w))
         patch_size_list.append(len(img_patches))
         n += 1
     index_array, vl = index_of_last_apperance(patch_size_list)
