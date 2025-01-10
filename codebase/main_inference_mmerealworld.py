@@ -348,9 +348,8 @@ def inference_internvl(config, questions, ans_file_path, contrastive_vlm_pack, g
                 else:
                     images.append(image)
                     tile_num_list.append(1)
-
             pixel_values = [generative_vlm_transform(image) for image in images]
-            pixel_values = torch.stack(pixel_values)
+            pixel_values = torch.stack(pixel_values).to(torch.bfloat16).cuda()
             num_patches = pixel_values.size(0)
 
             final_instruction = "<image>\n"
@@ -366,7 +365,7 @@ def inference_internvl(config, questions, ans_file_path, contrastive_vlm_pack, g
                 responses = generative_vlm.batch_chat(
                     generative_vlm_tokenizer,
                     pixel_values,
-                    num_patches_list=tile_num_list,
+                    num_patches_list=[num_patches],
                     questions=final_instruction,
                     generation_config=generative_vlm_generation_config
                 )
@@ -374,8 +373,8 @@ def inference_internvl(config, questions, ans_file_path, contrastive_vlm_pack, g
             for i, (response) in enumerate(responses):
                 if index % 100 == 0:
                     print(f'Prompt: {question_with_test_template}\n\n Output: {response}')
-                line[i]['output'] = response
-                ans_file.write(json.dumps(line[i]) + "\n")
+                line['output'] = response
+                ans_file.write(json.dumps(line) + "\n")
                 ans_file.flush()
                 index += 1
         ans_file.close()

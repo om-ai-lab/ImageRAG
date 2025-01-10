@@ -535,7 +535,7 @@ def img_reduce(cls_img_dict, vlm, img_preprocess, reduce_fn="mean"):
 
     return cls_feat_dict
 
-def ranking_patch_visualcue2patch(bbox_coordinate_list, visualcue2patch_similarity, top_k=5):
+def ranking_patch_visualcue2patch(bbox_coordinate_list, visualcue2patch_similarity, top_k=3):
     values, index = visualcue2patch_similarity.topk(top_k)
     # should be 5 * 3 = 15 candidates
     # top1patch_per_keyphrase = values[:, :1].flatten().tolist()

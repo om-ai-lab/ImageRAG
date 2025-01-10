@@ -459,6 +459,7 @@ def extract_triplets_from_str_task6(str, add_score = False):
 
 
 def obb2toobb1(obb2):
+    print(obb2)
     p1x, p1y, p2x, p2y, degree = obb2
     cx = (p1x + p2x) / 2
     cy = (p1y + p2y) / 2
@@ -539,6 +540,7 @@ def evaluation_metrics_ComplexCompre(data_path, param=8, group="double"):
     # for answers in tqdm(base):
     for i, answers in enumerate(tqdm(base)):
         # image_id = answers['image_id']
+        print(answers)
         answers = replace_5paraobb2_to_5paraobb1(answers)
         gt = answers['ground_truth']
         answer = answers['answer']
