@@ -4,7 +4,7 @@ import re
 import argparse
 from tqdm import tqdm 
 parser = argparse.ArgumentParser()
-parser.add_argument("--results_file", type=str, default='/media/zilun/fanxiang4t/GRSM/ImageRAG_git/data/eval/MME_RealWorld_inference_roi.jsonl')
+parser.add_argument("--results_file", type=str, default='/media/zilun/fanxiang4t/GRSM/ImageRAG_git/codebase/inference/MME-RealWorld-RS/MME_RealWorld_inference_roi_fit_union.jsonl')
 args = parser.parse_args()
 
 TASKS = [
@@ -80,6 +80,7 @@ for question in tqdm(data):
     
     text = extract_characters_regex(text, question['Answer choices'])
     # 检查 Ground Truth 和 text 是否相同
+    print(ground_truth, text)
     cnt = ground_truth == text
     
     if Category not in results[Task][Subtask].keys():
