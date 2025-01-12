@@ -71,8 +71,7 @@ llmvqa_model:
     "internvl"
   model_path:
     # "/data1/zilun/grsm/ImageRAG_git/checkpoint/InternVL2_5-8B_lora_5param_dynamic_0-1000_obb2_fit_unionpatch_obj_merged"
-    "/data1/zilun/grsm/ImageRAG_git/checkpoint/InternVL2_5-8B"
-      # "/media/zilun/fanxiang4t/GRSM/ImageRAG_git/checkpoint/InternVL2_5-4B"
+    "/data1/zilun/grsm/ImageRAG_git/checkpoint/InternVL2_5-4B"
   generation_config:
       temperature:
           0.2

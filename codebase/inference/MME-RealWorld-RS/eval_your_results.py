@@ -4,7 +4,7 @@ import re
 import argparse
 from tqdm import tqdm 
 parser = argparse.ArgumentParser()
-parser.add_argument("--results_file", type=str, default='/media/zilun/fanxiang4t/GRSM/ImageRAG_git/codebase/inference/MME-RealWorld-RS/MME_RealWorld_inference_roi_fit_union.jsonl')
+parser.add_argument("--results_file", type=str, default='/media/zilun/fanxiang4t/GRSM/ImageRAG_git/data/eval/answer_mme-realworld-lite-8B-detection-skipposition.jsonl')
 args = parser.parse_args()
 
 TASKS = [

@@ -24,6 +24,7 @@ import torchvision.transforms as T
 from torchvision.transforms.functional import InterpolationMode
 from transformers import AutoModel, AutoTokenizer
 import yaml
+import gc
 
 from codebase.llm_template import paraphrase_template, keyword_template, text_expansion_template
 from codebase.utils import (setup_vlm_model, set_up_paraphrase_model, setup_vqallm, setup_slow_text_encoder_model,
@@ -70,97 +71,57 @@ def get_chunk(lst, n, k):
     return chunks[k]
 
 
-def organize_prompt(test_prompt, qs, choices, mode="vanilla", bboxes=None, fit_relative_pos_star=None):
-    if "vanilla" not in mode:
-        assert bboxes is not None
-
-    choice_prompt = ' The choices are listed below: \n'
-    for choice in choices:
-        choice_prompt += choice + "\n"
-    qs += choice_prompt + test_prompt + '\nThe best answer is:'
-    
-    if mode == "vanilla":
-        prompt = qs
-        
-    elif mode == "vanilla_image_token":
-        final_instruction = "<image>\n"
-        # final_instruction += "Look at {} of the image and answer the question: \n".format(fit_relative_pos_star.lower())
-        final_instruction += qs
-        prompt = final_instruction
-
-    elif mode == "vanilla_relative_pos":
-        # prompt = qs
-        # fit_relative_pos_star = "Top-center"
-        fit_relative_pos_star = "Bottom-right"
-        final_instruction = "Look at {} of the image and answer the question: \n".format(fit_relative_pos_star.lower())
-        final_instruction += qs
-        prompt = final_instruction
-
-    elif mode == "vanilla_image_token_relative_pos":
-        # prompt = qs
-        final_instruction = "<image>\n"
-        fit_relative_pos_star = "Bottom-right"
-        final_instruction += "Look at {} of the image and answer the question: \n".format(fit_relative_pos_star.lower())
-        final_instruction += qs
-        prompt = final_instruction
-
-    elif mode == "withoutobb":
-        final_instruction = "<image>\n"
-        final_instruction += "Additional information:\n"
-        if len(bboxes) > 0:
-            for i, bbox in enumerate(bboxes):
-                final_instruction += "Sub-patch {} at location <box>[[{:.2f}, {:.2f}, {:.2f}, {:.2f}]]</box>: <image>\n".format(i + 1, *bbox)
-        final_instruction += "Look at {} of the image and answer the question: \n".format(fit_relative_pos_star.lower())
-        final_instruction += qs
-        prompt = final_instruction
-
-    elif mode == "withobb":
-        final_instruction = "<image>\n"
-        final_instruction += "Additional information:\n"
-        if len(bboxes) > 0:
-            for i, bbox in enumerate(bboxes):
-                final_instruction += "Sub-patch {} at location <box>[[{:.2f}, {:.2f}, {:.2f}, {:.2f}]]</box>: <image>\n".format(i + 1, *bbox)
-        final_instruction += "Look at {} of the image and answer the question based on the provided additional information (location of sub-patches) \nQuestion: ".format(fit_relative_pos_star.lower())
-        final_instruction += qs
-        prompt = final_instruction
-
-    return prompt
-
-
 # Custom dataset class
 class InternVLMMERSDataset(Dataset):
-    def __init__(self, questions, image_folder, tokenizer, dynamic_preprocess, transform, model_config, prompt, use_dynamic=True):
+    def __init__(self, questions, image_folder, tokenizer, dynamic_preprocess, transform, model_config, test_prompt, mode="baseline", use_dynamic=True):
         self.questions = questions
         self.image_folder = image_folder
         self.tokenizer = tokenizer
         self.transform = transform
         self.dynamic_preprocess = dynamic_preprocess
         self.model_config = model_config
-        self.prompt = prompt
+        self.test_prompt = test_prompt
         self.use_dynamic = use_dynamic
+        self.mode = mode
 
     def __getitem__(self, index):
         line = self.questions[index]
         choices = line['Answer choices']
         image_file = line["Image"]
         qs = line["Text"]
-        choice_prompt = ' The choices are listed below: \n'
-        for choice in choices:
-            choice_prompt += choice + "\n"
-        qs += choice_prompt + self.prompt + '\nThe best answer is:'
-        prompt = qs
-        # prompt = organize_prompt(self.prompt, qs, choices, mode=mode, bboxes=None, fit_relative_pos_star=None)
-        
+
+        if self.mode == "baseline":
+            choice_prompt = ' The choices are listed below: \n'
+            for choice in choices:
+                choice_prompt += choice + "\n"
+            final_instruction = qs + choice_prompt + self.test_prompt + '\nThe best answer is:'
+            prompt = final_instruction
+
+        # elif self.mode == "baseline_detection":
+        # # prompt = organize_prompt(self.prompt, qs, choices, mode=mode, bboxes=None, fit_relative_pos_star=None)
+        #     detection_prompt = 'What is the target of interest in this question? Please provide the bounding box coordinate of the target of interest this sentence describes and answer the question based on that.'
+        #     choice_prompt = ' The choices are listed below: \n'
+        #     for choice in choices:
+        #         choice_prompt += choice + "\n"
+        #     final_instruction = "<image>\n" + qs + detection_prompt + choice_prompt + self.test_prompt + '\nThe best answer is:'
+        #     prompt = final_instruction
+        #
+        # elif self.mode == "imagerag":
+        #     choice_prompt = ' The choices are listed below: \n'
+        #     for choice in choices:
+        #         choice_prompt += choice + "\n"
+        #     final_instruction = "<image>\n"
+        #     final_instruction += "Additional information:\n"
+        #     if len(bboxes) > 0:
+        #         for i, bbox in enumerate(bboxes):
+        #             final_instruction += "Sub-patch {} at location <box>[[{:.2f}, {:.2f}, {:.2f}, {:.2f}]]</box>: <image>\n".format(
+        #                 i + 1, *bbox)
+        #     final_instruction += "Look at {} of the image and answer the question based on the provided additional information (location of sub-patches) \nQuestion: ".format(
+        #         fit_relative_pos_star.lower())
+        #     final_instruction += qs
+        #     prompt = final_instruction
 
         image_path = os.path.join(self.image_folder, image_file)
-
-        # pixel_values = self.load_image(
-        #     image_path,
-        #     transform=transform,
-        #     input_size=self.model_config.vision_config.image_size,
-        #     max_num=self.model_config.max_dynamic_patch,
-        #     use_dynamic=True
-        # ).to(torch.bfloat16).cuda()
 
         if type(image_path) == str:
             image = Image.open(image_path).convert('RGB')
@@ -247,7 +208,7 @@ def image_rag(config, contrastive_vlm_pack, line, client, logger, text_vectorsto
     # patchify -> padded image and dict of bbox - patch save name
     img_resize, coordinate_patchname_dict = img_2patch(
         input_uhr_image,
-        c_denom=2,
+        c_denom=6,
         dump_imgs=True,
         # dump_imgs=False, Not working
         patch_saving_dir=patch_saving_dir
@@ -346,7 +307,8 @@ def image_rag(config, contrastive_vlm_pack, line, client, logger, text_vectorsto
     return image_path, visual_cue, question_with_test_template
 
 
-def inference_internvl(config, questions, ans_file_path, contrastive_vlm_pack, generative_vlm_pack, client, logger):
+def inference_internvl(config, questions, ans_file_path, generative_vlm_pack, client, logger):
+    InternVL_coord_pattern = re.compile(r'\[*\[(.*?),(.*?),(.*?),(.*?)\]\]*')
     # TODO: only works for InternVL model, Batch_Size=1
     ans_file = open(ans_file_path, "w")
     generative_vlm, generative_vlm_tokenizer, generative_vlm_generation_config, generative_vlm_dynamic_preprocess, generative_vlm_transform = generative_vlm_pack
@@ -376,11 +338,139 @@ def inference_internvl(config, questions, ans_file_path, contrastive_vlm_pack, g
                 index += 1
         ans_file.close()
 
+    elif config["mode"] == "baseline_detection":
+        assert config["batch_size"] == 1
+        for line in tqdm(questions):
+            choices = line['Answer choices']
+            question = line["Text"]
+            image_file = line["Image"]
+            choice_prompt = ' The choices are listed below: \n'
+            for choice in choices:
+                choice_prompt += choice + "\n"
+            image_path = os.path.join(config['input_image_dir'], image_file)
+            question_with_test_template = question + choice_prompt + config["test_prompt"] + '\nThe best answer is:'
+
+            # if line["Category"] != "count":
+            target_of_interest_prompt = 'What is the target of interest in this question? Answer in short phrases only.'
+            target_of_interest_final_instruction = "Question: {}\n".format(question) + target_of_interest_prompt
+            llm_params = dict(
+                temperature=config['paraphrase_model']['generation_config']['temperature'],
+                max_tokens=config['paraphrase_model']['generation_config']['max_tokens'],
+                top_p=config['paraphrase_model']['generation_config']['top_p'],
+                timeout=config['paraphrase_model']['generation_config']['timeout'],
+                # do_sample=True
+            )
+            msg = [
+                {
+                    "role": "user",
+                    "content": target_of_interest_final_instruction
+                }
+            ]
+            llm_response = client.chat.completions.create(
+                model="llm",
+                messages=msg,
+                **llm_params
+            )
+            toi_str = llm_response.choices[0].message.content.strip()
+            line["target_of_interest"] = toi_str
+            detection_final_instruction = '<image>\nPlease provide the bounding box coordinate of the region this sentence describes: <ref>{}</ref>.'.format(toi_str)
+
+            images, tile_num_list = [], []
+
+            image = Image.open(image_path).convert('RGB')
+            w, h = image.size
+            image_anyres = generative_vlm_dynamic_preprocess(
+                image,
+                max_num=generative_vlm.config.max_dynamic_patch,
+                image_size=generative_vlm.config.vision_config.image_size,
+                use_thumbnail=generative_vlm.config.use_thumbnail,
+            )
+            images += image_anyres
+            pixel_values = [generative_vlm_transform(image) for image in images]
+            pixel_values = torch.stack(pixel_values).to(torch.bfloat16).cuda()
+            tile_num_list.append(len(image_anyres))
+
+            # if line["Category"] != "count":
+            with torch.inference_mode():
+                # TODO: visual cues contain full image, duplicate
+                bbox_response = generative_vlm.chat(
+                    generative_vlm_tokenizer,
+                    pixel_values,
+                    detection_final_instruction,
+                    generative_vlm_generation_config
+                )
+
+            predict_bbox = re.findall(InternVL_coord_pattern, bbox_response)
+            try:
+                predict_bbox = [float(predict_bbox[0][0]), float(predict_bbox[0][1]), float(predict_bbox[0][2]),
+                                float(predict_bbox[0][3])]
+            except:
+                predict_bbox = None
+
+            line["visual_cue"] = predict_bbox
+
+            if predict_bbox:
+                gc.collect()
+                torch.cuda.empty_cache()
+                visual_cues = [predict_bbox]
+                for object_coord in visual_cues:
+                    x1, y1, x2, y2 = object_coord
+                    x1 = int(x1 / 1000 * w)
+                    y1 = int(y1 / 1000 * h)
+                    x2 = int(x2 / 1000 * w)
+                    y2 = int(y2 / 1000 * h)
+                    image_crop = image.crop((x1, y1, x2, y2))
+                    images.append(image_crop)
+                    tile_num_list.append(1)
+                pixel_values = [generative_vlm_transform(image) for image in images]
+                pixel_values = torch.stack(pixel_values).to(torch.bfloat16).cuda()
+
+                final_instruction = "<image>\n"
+                final_instruction += "Additional information:\n"
+                for i, bbox in enumerate(visual_cues):
+                    final_instruction += "Sub-patch {} at location <box>[[{:.2f}, {:.2f}, {:.2f}, {:.2f}]]</box>: <image>\n".format(
+                        i + 1, *bbox)
+                final_instruction += "Look at the image and answer the question based on the provided additional information (location of sub-patches). \n"
+                final_instruction += "Question: "
+                final_instruction += question_with_test_template
+                num_patches_list = [pixel_values.size(0) - len(visual_cues), len(visual_cues)]
+                response = generative_vlm.chat(
+                    generative_vlm_tokenizer,
+                    pixel_values,
+                    final_instruction,
+                    generative_vlm_generation_config,
+                    num_patches_list=num_patches_list
+                )
+            else:
+                final_instruction = question_with_test_template
+                response = generative_vlm.chat(
+                    generative_vlm_tokenizer,
+                    pixel_values,
+                    final_instruction,
+                    generative_vlm_generation_config,
+                )
+
+            with torch.inference_mode():
+                # TODO: visual cues contain full image, duplicate
+
+                print(
+                        f'Prompt: {question_with_test_template}\n\n GT: {line["Ground truth"]} \n Output: {response}')
+                line['output'] = response
+                ans_file.write(json.dumps(line) + "\n")
+                ans_file.flush()
+                index += 1
+        ans_file.close()
+
     elif config["mode"] == "imagerag":
         # imagerag does not support parallel inference
-        text_vectorstore, vsd_label2imgname_dict, vsd_imgname2label_dict, vsd_imgname2feat_dict = setup_text_vsd(config)
         assert config["batch_size"] == 1
-        for line in questions:
+        fast_vlm_model_name = config['fast_vlm_model']['model_name']
+        fast_vlm_model_path = config['fast_vlm_model']['model_path']
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+        # fast_path_vlm, img_preprocess, text_tokenizer
+        contrastive_vlm_pack = setup_vlm_model(fast_vlm_model_path, fast_vlm_model_name, device)
+        text_vectorstore, vsd_label2imgname_dict, vsd_imgname2label_dict, vsd_imgname2feat_dict = setup_text_vsd(config)
+        for line in tqdm(questions):
             image_path, visual_cues, question_with_test_template = image_rag(
                 config, contrastive_vlm_pack, line, client, logger,
                 text_vectorstore, vsd_label2imgname_dict, vsd_imgname2label_dict, vsd_imgname2feat_dict,
@@ -388,7 +478,9 @@ def inference_internvl(config, questions, ans_file_path, contrastive_vlm_pack, g
             )
             images, tile_num_list = [], []
             global_and_locals = []
+            num_patches_list = []
             image = Image.open(image_path).convert('RGB')
+            w, h = image.size
             global_and_locals.append(image)
             for object_coord in visual_cues:
                 image_crop = image.crop(object_coord)
@@ -407,31 +499,40 @@ def inference_internvl(config, questions, ans_file_path, contrastive_vlm_pack, g
                 else:
                     images.append(image)
                     tile_num_list.append(1)
+
             pixel_values = [generative_vlm_transform(image) for image in images]
             pixel_values = torch.stack(pixel_values).to(torch.bfloat16).cuda()
-            num_patches = pixel_values.size(0)
+            num_patches = pixel_values.size(0) - len(visual_cues)
 
+            normalized_visual_cues = []
             final_instruction = "<image>\n"
             final_instruction += "Additional information:\n"
             for i, bbox in enumerate(visual_cues):
-                final_instruction += "Sub-patch {} at location <box>[[{:.2f}, {:.2f}, {:.2f}, {:.2f}]]</box>: <image>\n".format(i + 1, *bbox)
-            final_instruction += "Look at the image and answer the question based on the provided additional information (location of sub-patches) \n"
+                x1, y1, x2, y2 = bbox
+                x1 = int(x1 / w * 1000)
+                y1 = int(y1 / h * 1000)
+                x2 = int(x2 / w * 1000)
+                y2 = int(y2 / h * 1000)
+                normalized_bbox = (x1, y1, x2, y2)
+                normalized_visual_cues.append(normalized_bbox)
+                final_instruction += "Sub-patch {} at location <box>[[{:.2f}, {:.2f}, {:.2f}, {:.2f}]]</box>: <image>\n".format(i + 1, *normalized_bbox)
+            final_instruction += "Look at the image and answer the question based on the provided additional information (location of sub-patches). \n"
             final_instruction += "Question: "
             final_instruction += question_with_test_template
 
+            line["visual_cue"] = normalized_visual_cues
+
             with torch.inference_mode():
                 # TODO: visual cues contain full image, duplicate
-                responses = generative_vlm.batch_chat(
+                response = generative_vlm.chat(
                     generative_vlm_tokenizer,
                     pixel_values,
-                    num_patches_list=[num_patches],
-                    questions=final_instruction,
-                    generation_config=generative_vlm_generation_config
+                    final_instruction,
+                    generative_vlm_generation_config,
+                    num_patches_list=tile_num_list
                 )
 
-            for i, (response) in enumerate(responses):
-                if index % 100 == 0:
-                    print(f'Prompt: {question_with_test_template}\n\n Output: {response}')
+                print(f'Prompt: {question_with_test_template}\n\n \GT: {line["Ground truth"]} \n Output: {response}')
                 line['output'] = response
                 ans_file.write(json.dumps(line) + "\n")
                 ans_file.flush()
@@ -445,7 +546,7 @@ def inference():
     pl.seed_everything(2024)
 
     parser = argparse.ArgumentParser(description='Process some integers.')
-    parser.add_argument('--cfg_path', type=str, default='/media/zilun/fanxiang4t/GRSM/ImageRAG_git/config/config_internvl8b_5hbb_448_dynamic_0-1000_mmerealworld.yaml', help='Path to the configuration file.')
+    parser.add_argument('--cfg_path', type=str, default='/media/zilun/fanxiang4t/GRSM/ImageRAG_git/config/config_internvl8b_5hbb_448_dynamic_0-1000_mmerealworld-imagerag.yaml', help='Path to the configuration file.')
     parser.add_argument('--log_dir', type=str, default='./log', help='Path to the log file.')
     parser.add_argument('--base_url', type=str, default='http://127.0.0.1:30000/v1', help='base url')
 
@@ -457,12 +558,8 @@ def inference():
     patch_saving_dir = config['patch_saving_dir']
     os.makedirs(patch_saving_dir, exist_ok=True)
     device = "cuda" if torch.cuda.is_available() else "cpu"
-    fast_vlm_model_name = config['fast_vlm_model']['model_name']
-    fast_vlm_model_path = config['fast_vlm_model']['model_path']
     llmvqa_model_name = config['llmvqa_model']['model_name']
     llmvqa_model_path = config['llmvqa_model']['model_path']
-    # fast_path_vlm, img_preprocess, text_tokenizer
-    contrastive_vlm_pack = setup_vlm_model(fast_vlm_model_path, fast_vlm_model_name, device)
     generative_vlm_generation_config = dict(
         max_new_tokens=config["llmvqa_model"]["generation_config"]["max_tokens"],
         do_sample=True if config["llmvqa_model"]["generation_config"]["temperature"] > 0 else False,
@@ -470,7 +567,7 @@ def inference():
         top_p=config["llmvqa_model"]["generation_config"]["top_p"],
         num_beams=config["llmvqa_model"]["generation_config"]["num_beams"],
     )
-    generative_vlm_pack = setup_vqallm(llmvqa_model_path, llmvqa_model_name, generative_vlm_generation_config, config["model_input_image_size"], device=device)
+    generative_vlm_pack = setup_vqallm(llmvqa_model_path, llmvqa_model_name, generative_vlm_generation_config, config["model_input_image_size"], device=device, load_in_8bit=config["llmvqa_model"]["load_in_8bit"])
     client = openai.Client(base_url=args.base_url, api_key="None")
 
     with open(config['question_file_path'], 'r') as file:
@@ -482,7 +579,7 @@ def inference():
 
 
     if "InternVL" in llmvqa_model_path:
-        answers_file = inference_internvl(config, questions, answers_file, contrastive_vlm_pack, generative_vlm_pack, client, logger)
+        answers_file = inference_internvl(config, questions, answers_file, generative_vlm_pack, client, logger)
         print(answers_file)
 
 

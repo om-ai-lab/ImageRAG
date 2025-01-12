@@ -1,5 +1,5 @@
 task_name:
-  "mmer-realworld"
+  "mmer-ealworld"
 
 work_dir:
   "/media/zilun/fanxiang4t/GRSM/ImageRAG_git"
@@ -26,7 +26,7 @@ chunk_idx:
   0
 
 mode:
-  "baseline"
+  "baseline_detection"
 
 paraphrase_model:
     model_name:
@@ -44,6 +44,17 @@ paraphrase_model:
             60
 
 kw_model:
+#    model_path:
+#        "/media/zilun/wd-161/hf_download/all-MiniLM-L6-v2"
+#    generation_config:
+#        temperature:
+#            0.99
+#        top_p:
+#            0.95
+#        max_tokens:
+#            512
+#        timeout:
+#            60
 
 text_expansion_model:
 
@@ -93,7 +104,7 @@ question_file_path:
   "/media/zilun/fanxiang4t/GRSM/ImageRAG_git/codebase/inference/MME-RealWorld-RS/MME-RealWorld-Lite.json"
 
 answers_file_path:
-  "/media/zilun/fanxiang4t/GRSM/ImageRAG_git/data/eval/answer_mme-realworld-lite-8B.jsonl"
+  "/media/zilun/fanxiang4t/GRSM/ImageRAG_git/data/eval/answer_mme-realworld-lite-8B-detection-fit-union.jsonl"
 
 batch_size:
   1

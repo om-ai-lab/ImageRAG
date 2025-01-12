@@ -218,7 +218,7 @@ def setup_slow_text_encoder_model(model_path, device):
     tokenizer = AutoTokenizer.from_pretrained(model_path)
     return model, tokenizer
 
-def setup_vqallm(llmvqa_model_path, llmvqa_model_name, generation_config, input_size, device):
+def setup_vqallm(llmvqa_model_path, llmvqa_model_name, generation_config, input_size, device, load_in_8bit=False):
     if "llava-onevision-qwen2-0.5b-ov" in llmvqa_model_name.lower():
         from codebase.vqa_llm.vaq_llm import VQA_LLM
         import warnings
@@ -239,8 +239,9 @@ def setup_vqallm(llmvqa_model_path, llmvqa_model_name, generation_config, input_
             model_path,
             torch_dtype=torch.bfloat16,
             low_cpu_mem_usage=True,
-            trust_remote_code=True
-        ).eval().cuda()
+            trust_remote_code=True,
+            load_in_8bit=load_in_8bit
+        ).eval()
         tokenizer = AutoTokenizer.from_pretrained(
             model_path,
             trust_remote_code=True,

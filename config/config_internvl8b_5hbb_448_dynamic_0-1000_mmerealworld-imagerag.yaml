@@ -26,7 +26,7 @@ chunk_idx:
   0
 
 mode:
-  "baseline"
+  "imagerag"
 
 paraphrase_model:
     model_name:
@@ -62,7 +62,7 @@ llmvqa_model:
   model_name:
     "internvl"
   model_path:
-      "/media/zilun/fanxiang4t/GRSM/ImageRAG_git/checkpoint/InternVL2_5-8B"
+      "/media/zilun/fanxiang4t/GRSM/ImageRAG_git/checkpoint/InternVL2_5-4B"
   load_in_8bit:
     True
   generation_config:
@@ -83,17 +83,17 @@ vector_database:
     img_dir:
       "/media/zilun/mx500/ImageRAG_database/cropped_img"
     text_vector_database_dir:
-      "/media/zilun/fanxiang4t/GRSM/IRAG/ImageRAG_git/codebase/vector_database/text_vector_database"
+      "/media/zilun/fanxiang4t/GRSM/ImageRAG_git/codebase/vector_database/text_vector_database"
     image_vector_database_dir:
-      "/media/zilun/fanxiang4t/GRSM/IRAG/ImageRAG_git/codebase/vector_database/image_vector_database"
+      "/media/zilun/fanxiang4t/GRSM/ImageRAG_git/codebase/vector_database/image_vector_database"
     mm_vector_database_dir:
-      "/media/zilun/fanxiang4t/GRSM/IRAG/ImageRAG_git/codebase/vector_database/mm_vector_database"
+      "/media/zilun/fanxiang4t/GRSM/ImageRAG_git/codebase/vector_database/mm_vector_database"
 
 question_file_path:
   "/media/zilun/fanxiang4t/GRSM/ImageRAG_git/codebase/inference/MME-RealWorld-RS/MME-RealWorld-Lite.json"
 
 answers_file_path:
-  "/media/zilun/fanxiang4t/GRSM/ImageRAG_git/data/eval/answer_mme-realworld-lite-8B.jsonl"
+  "/media/zilun/fanxiang4t/GRSM/ImageRAG_git/data/eval/answer_mme-realworld-lite-imagerag.jsonl"
 
 batch_size:
   1
