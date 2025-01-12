@@ -45,7 +45,7 @@ def whrange2bbox(w_range, h_range):
     return w_range[0], h_range[0], w_range[1] - w_range[0], h_range[1] - h_range[0]
 
 
-def vis_patches(save_dir, patch_coordinates, img_resize):
+def vis_patches(save_dir, patch_coordinates, img_resize, img_name):
     assert isinstance(patch_coordinates, list)
     coordinate_patchname_dict = dict()
     for level_index, level_content in enumerate(tqdm(patch_coordinates)):
@@ -53,7 +53,7 @@ def vis_patches(save_dir, patch_coordinates, img_resize):
             h_range, w_range = patch_coordinate
             crop_box = (w_range[0], h_range[0], w_range[1], h_range[1])
             patch_img = img_resize.crop(crop_box)
-            patch_save_name = "patchlevel-{}_patch-{}.png".format(level_index, patch_index)
+            patch_save_name = "{}_patchlevel-{}_patch-{}.png".format(img_name, level_index, patch_index)
             patch_img.save(os.path.join(save_dir, patch_save_name))
             # patch_bbox_coordinate = whrange2bbox(w_range, h_range)
             patch_bbox_coordinate = crop_box
@@ -61,7 +61,7 @@ def vis_patches(save_dir, patch_coordinates, img_resize):
     return coordinate_patchname_dict
 
 
-def img_2patch(img, c_denom=10, dump_imgs=False, patch_saving_dir=None):
+def img_2patch(img, img_name, c_denom=10, dump_imgs=False, patch_saving_dir=None):
     """
     Get image patches with patch-cc scheme
     (bs, 3, h, w) -> (bs, p, 3, h_p, w_p)
@@ -115,7 +115,7 @@ def img_2patch(img, c_denom=10, dump_imgs=False, patch_saving_dir=None):
     patch_container_deduplicate = [patch_container[i] for i in index_array]
 
     if dump_imgs:
-        patch_container_deduplicate = vis_patches(save_dir=patch_saving_dir, patch_coordinates=patch_container_deduplicate, img_resize=img_resize)
+        patch_container_deduplicate = vis_patches(save_dir=patch_saving_dir, patch_coordinates=patch_container_deduplicate, img_resize=img_resize, img_name=img_name)
 
     return img_resize, patch_container_deduplicate
 

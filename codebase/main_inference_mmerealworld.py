@@ -208,7 +208,8 @@ def image_rag(config, contrastive_vlm_pack, line, client, logger, text_vectorsto
     # patchify -> padded image and dict of bbox - patch save name
     img_resize, coordinate_patchname_dict = img_2patch(
         input_uhr_image,
-        c_denom=6,
+        image_file.split(".")[0],
+        c_denom=10,
         dump_imgs=True,
         # dump_imgs=False, Not working
         patch_saving_dir=patch_saving_dir
