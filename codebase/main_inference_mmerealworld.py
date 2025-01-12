@@ -70,6 +70,63 @@ def get_chunk(lst, n, k):
     return chunks[k]
 
 
+def organize_prompt(test_prompt, qs, choices, mode="vanilla", bboxes=None, fit_relative_pos_star=None):
+    if "vanilla" not in mode:
+        assert bboxes is not None
+
+    choice_prompt = ' The choices are listed below: \n'
+    for choice in choices:
+        choice_prompt += choice + "\n"
+    qs += choice_prompt + test_prompt + '\nThe best answer is:'
+    
+    if mode == "vanilla":
+        prompt = qs
+        
+    elif mode == "vanilla_image_token":
+        final_instruction = "<image>\n"
+        # final_instruction += "Look at {} of the image and answer the question: \n".format(fit_relative_pos_star.lower())
+        final_instruction += qs
+        prompt = final_instruction
+
+    elif mode == "vanilla_relative_pos":
+        # prompt = qs
+        # fit_relative_pos_star = "Top-center"
+        fit_relative_pos_star = "Bottom-right"
+        final_instruction = "Look at {} of the image and answer the question: \n".format(fit_relative_pos_star.lower())
+        final_instruction += qs
+        prompt = final_instruction
+
+    elif mode == "vanilla_image_token_relative_pos":
+        # prompt = qs
+        final_instruction = "<image>\n"
+        fit_relative_pos_star = "Bottom-right"
+        final_instruction += "Look at {} of the image and answer the question: \n".format(fit_relative_pos_star.lower())
+        final_instruction += qs
+        prompt = final_instruction
+
+    elif mode == "withoutobb":
+        final_instruction = "<image>\n"
+        final_instruction += "Additional information:\n"
+        if len(bboxes) > 0:
+            for i, bbox in enumerate(bboxes):
+                final_instruction += "Sub-patch {} at location <box>[[{:.2f}, {:.2f}, {:.2f}, {:.2f}]]</box>: <image>\n".format(i + 1, *bbox)
+        final_instruction += "Look at {} of the image and answer the question: \n".format(fit_relative_pos_star.lower())
+        final_instruction += qs
+        prompt = final_instruction
+
+    elif mode == "withobb":
+        final_instruction = "<image>\n"
+        final_instruction += "Additional information:\n"
+        if len(bboxes) > 0:
+            for i, bbox in enumerate(bboxes):
+                final_instruction += "Sub-patch {} at location <box>[[{:.2f}, {:.2f}, {:.2f}, {:.2f}]]</box>: <image>\n".format(i + 1, *bbox)
+        final_instruction += "Look at {} of the image and answer the question based on the provided additional information (location of sub-patches) \nQuestion: ".format(fit_relative_pos_star.lower())
+        final_instruction += qs
+        prompt = final_instruction
+
+    return prompt
+
+
 # Custom dataset class
 class InternVLMMERSDataset(Dataset):
     def __init__(self, questions, image_folder, tokenizer, dynamic_preprocess, transform, model_config, prompt, use_dynamic=True):
@@ -92,6 +149,8 @@ class InternVLMMERSDataset(Dataset):
             choice_prompt += choice + "\n"
         qs += choice_prompt + self.prompt + '\nThe best answer is:'
         prompt = qs
+        # prompt = organize_prompt(self.prompt, qs, choices, mode=mode, bboxes=None, fit_relative_pos_star=None)
+        
 
         image_path = os.path.join(self.image_folder, image_file)
 
@@ -309,13 +368,13 @@ def inference_internvl(config, questions, ans_file_path, contrastive_vlm_pack, g
                     generation_config=generative_vlm_generation_config
                 )
             for i, response in enumerate(responses):
-                if index % 100 == 0:
+                if index % 1 == 0:
                     print(f'Prompt: {prompts[i]}\n\n Output: {response}')
                 line[i]['output'] = response
                 ans_file.write(json.dumps(line[i]) + "\n")
                 ans_file.flush()
                 index += 1
-            ans_file.close()
+        ans_file.close()
 
     elif config["mode"] == "imagerag":
         # imagerag does not support parallel inference
@@ -411,7 +470,7 @@ def inference():
         top_p=config["llmvqa_model"]["generation_config"]["top_p"],
         num_beams=config["llmvqa_model"]["generation_config"]["num_beams"],
     )
-    generative_vlm_pack = setup_vqallm(llmvqa_model_path, llmvqa_model_name, generative_vlm_generation_config, config["generative_vlm_input_image_size"], device=device)
+    generative_vlm_pack = setup_vqallm(llmvqa_model_path, llmvqa_model_name, generative_vlm_generation_config, config["model_input_image_size"], device=device)
     client = openai.Client(base_url=args.base_url, api_key="None")
 
     with open(config['question_file_path'], 'r') as file:
