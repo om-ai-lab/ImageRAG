@@ -375,7 +375,7 @@ def inference_internvl(config, questions, ans_file_path, generative_vlm_pack, cl
             toi_str = llm_response.choices[0].message.content.strip()
             line["target_of_interest"] = toi_str
             detection_final_instruction = '<image>\nPlease provide the bounding box coordinate of the region this sentence describes: <ref>{}</ref>.'.format(toi_str)
-
+            # detection_final_instruction = '<image>\n[detection]Please locate the {} in the given image.'.format(toi_str)
             images, tile_num_list = [], []
 
             image = Image.open(image_path).convert('RGB')
@@ -547,7 +547,7 @@ def inference():
     pl.seed_everything(2024)
 
     parser = argparse.ArgumentParser(description='Process some integers.')
-    parser.add_argument('--cfg_path', type=str, default='/media/zilun/fanxiang4t/GRSM/ImageRAG_git/config/config_internvl8b_5hbb_448_dynamic_0-1000_mmerealworld-imagerag.yaml', help='Path to the configuration file.')
+    parser.add_argument('--cfg_path', type=str, default='/media/zilun/fanxiang4t/GRSM/ImageRAG_git/config/config_internvl8b_5hbb_448_dynamic_0-1000_mmerealworld-detection.yaml', help='Path to the configuration file.')
     parser.add_argument('--log_dir', type=str, default='./log', help='Path to the log file.')
     parser.add_argument('--base_url', type=str, default='http://127.0.0.1:30000/v1', help='base url')
 
@@ -587,5 +587,3 @@ def inference():
 
 if __name__ == "__main__":
     inference()
-
-    

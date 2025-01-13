@@ -5,7 +5,7 @@ work_dir:
   "/media/zilun/fanxiang4t/GRSM/ImageRAG_git"
 
 input_image_dir:
-  "/media/zilun/wd-161/datasets/MME-RealWorld/rs_subset/remote_sensing"
+  "/media/zilun/wd-161/datasets/MME-RealWorld/rs_subset"
 
 patch_saving_dir:
   "patch_save_dir"
@@ -74,6 +74,7 @@ llmvqa_model:
     "internvl"
   model_path:
       "/media/zilun/fanxiang4t/GRSM/ImageRAG_git/checkpoint/InternVL2_5-8B"
+#      "/media/zilun/fanxiang4t/GRSM/ImageRAG_git/checkpoint/InternVL2_5-8B_lora_5param_dynamic_0-1000_obb2_fit_unionpatch_obj_merged"
   load_in_8bit:
     True
   generation_config:
@@ -101,10 +102,10 @@ vector_database:
       "/media/zilun/fanxiang4t/GRSM/IRAG/ImageRAG_git/codebase/vector_database/mm_vector_database"
 
 question_file_path:
-  "/media/zilun/fanxiang4t/GRSM/ImageRAG_git/codebase/inference/MME-RealWorld-RS/MME-RealWorld-Lite.json"
+  "/media/zilun/fanxiang4t/GRSM/ImageRAG_git/codebase/inference/MME-RealWorld-RS/MME_RealWorld.json"
 
 answers_file_path:
-  "/media/zilun/fanxiang4t/GRSM/ImageRAG_git/data/eval/answer_mme-realworld-lite-8B-detection-fit-union.jsonl"
+  "/media/zilun/fanxiang4t/GRSM/ImageRAG_git/data/eval/answer_mme-realworld-8B-detection-fit-union-obj.jsonl"
 
 batch_size:
   1

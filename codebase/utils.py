@@ -241,7 +241,7 @@ def setup_vqallm(llmvqa_model_path, llmvqa_model_name, generation_config, input_
             low_cpu_mem_usage=True,
             trust_remote_code=True,
             load_in_8bit=load_in_8bit
-        ).cuda().eval()
+        ).eval()
         tokenizer = AutoTokenizer.from_pretrained(
             model_path,
             trust_remote_code=True,
