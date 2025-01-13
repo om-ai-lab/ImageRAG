@@ -569,6 +569,7 @@ def inference():
         num_beams=config["llmvqa_model"]["generation_config"]["num_beams"],
     )
     generative_vlm_pack = setup_vqallm(llmvqa_model_path, llmvqa_model_name, generative_vlm_generation_config, config["model_input_image_size"], device=device, load_in_8bit=config["llmvqa_model"]["load_in_8bit"])
+    
     client = openai.Client(base_url=args.base_url, api_key="None")
 
     with open(config['question_file_path'], 'r') as file:
