@@ -1,0 +1,191 @@
+{
+    "perception/remote_sensing/position/1433": [
+        {
+            "x": 3800,
+            "y": 767,
+            "width": 199,
+            "height": 175,
+            "label": ""
+        }
+    ],
+    "perception/remote_sensing/position/3193": [
+        {
+            "x": 1130,
+            "y": 664,
+            "width": 491,
+            "height": 428,
+            "label": ""
+        }
+    ],
+    "perception/remote_sensing/position/1826": [
+        {
+            "x": 4731,
+            "y": 3944,
+            "width": 1066,
+            "height": 936,
+            "label": ""
+        }
+    ],
+    "perception/remote_sensing/position/3136": [
+        {
+            "x": 1295,
+            "y": 3253,
+            "width": 480,
+            "height": 472,
+            "label": ""
+        }
+    ],
+    "perception/remote_sensing/position/2414": [
+        {
+            "x": 2426,
+            "y": 3965,
+            "width": 187,
+            "height": 167,
+            "label": ""
+        }
+    ],
+    "perception/remote_sensing/position/3376": [
+        {
+            "x": 1010,
+            "y": 3066,
+            "width": 549,
+            "height": 549,
+            "label": ""
+        }
+    ],
+    "perception/remote_sensing/position/0045": [
+        {
+            "x": 1453,
+            "y": 1798,
+            "width": 163,
+            "height": 166,
+            "label": ""
+        }
+    ],
+    "perception/remote_sensing/position/1094": [
+        {
+            "x": 1397,
+            "y": 3351,
+            "width": 858,
+            "height": 524,
+            "label": ""
+        }
+    ],
+    "perception/remote_sensing/color/3374": [
+        {
+            "x": 6053,
+            "y": 4042,
+            "width": 1041,
+            "height": 858,
+            "label": ""
+        }
+    ],
+    "perception/remote_sensing/color/1824": [
+        {
+            "x": 4743,
+            "y": 3981,
+            "width": 1094,
+            "height": 809,
+            "label": ""
+        }
+    ],
+    "perception/remote_sensing/color/3134": [
+        {
+            "x": 6898,
+            "y": 4,
+            "width": 427,
+            "height": 342,
+            "label": ""
+        }
+    ],
+    "perception/remote_sensing/color/3089": [
+        {
+            "x": 2452,
+            "y": 109,
+            "width": 152,
+            "height": 158,
+            "label": ""
+        }
+    ],
+    "perception/remote_sensing/color/2304": [
+        {
+            "x": 758,
+            "y": 2253,
+            "width": 2168,
+            "height": 634,
+            "label": ""
+        }
+    ],
+    "perception/remote_sensing/color/1431": [
+        {
+            "x": 2519,
+            "y": 813,
+            "width": 256,
+            "height": 501,
+            "label": ""
+        }
+    ],
+    "perception/remote_sensing/color/2160": [
+        {
+            "x": 3,
+            "y": 468,
+            "width": 1910,
+            "height": 147,
+            "label": ""
+        }
+    ],
+    "perception/remote_sensing/count/2413": [
+        {
+            "x": 6,
+            "y": 4282,
+            "width": 708,
+            "height": 626,
+            "label": ""
+        }
+    ],
+    "perception/remote_sensing/count/2305": [
+        {
+            "x": 6,
+            "y": 2574,
+            "width": 3587,
+            "height": 1708,
+            "label": ""
+        }
+    ],
+    "perception/remote_sensing/count/0044": [
+        {
+            "x": 2055,
+            "y": 38,
+            "width": 38,
+            "height": 52,
+            "label": ""
+        }
+    ],
+    "perception/remote_sensing/count/3090": [
+        {
+            "x": 728,
+            "y": 1824,
+            "width": 357,
+            "height": 340,
+            "label": ""
+        }
+    ],
+    "perception/remote_sensing/count/3192": [
+        {
+            "x": 696,
+            "y": 1270,
+            "width": 181,
+            "height": 147,
+            "label": ""
+        }
+    ],
+    "perception/remote_sensing/count/1093": [
+        {
+            "x": 5426,
+            "y": 1338,
+            "width": 785,
+            "height": 3151,
+            "label": ""
+        }
+    ]
+}

@@ -4,7 +4,7 @@ import re
 import argparse
 from tqdm import tqdm 
 parser = argparse.ArgumentParser()
-parser.add_argument("--results_file", type=str, default='/media/zilun/fanxiang4t/GRSM/ImageRAG_git/data/eval/answer_mme-realworld-lite-8B-detection-fit-union-obj.jsonl')
+parser.add_argument("--results_file", type=str, default='/media/zilun/fanxiang4t/GRSM/ImageRAG_git/data/eval/answer_mme-realworld-8B-detection-fit-union-obj-toi-gt-test.jsonl')
 args = parser.parse_args()
 
 TASKS = [

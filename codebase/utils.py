@@ -165,15 +165,23 @@ def extract_vlm_img_text_feat(query, key_text, coordinate_patchname_dict, patch_
         # text_content = [text_tokenizer(f"a photo of the {c}") for c in key_text]
         # text_content = [text_tokenizer(query)]
         prompt = "a photo includes "
-        for c in key_text:
-            # c = c.replace("the ", "")
-            if c != key_text[-1]:
-                prompt += "{}, ".format(c)
-            else:
-                prompt += "and {}.".format(c)
+        if len(key_text) == 1:
+            prompt += "{}".format(key_text[0])
+            text_content = [text_tokenizer(prompt)]
+
+        elif len(key_text) > 1:
+            for c in key_text:
+                # c = c.replace("the ", "")
+                if c != key_text[-1]:
+                    prompt += "{}, ".format(c)
+                else:
+                    prompt += "and {}.".format(c)
+            text_content = [text_tokenizer(prompt)] + [text_tokenizer(f"a photo of the {c}") for c in key_text]
+        else:
+            print("No keyword detected")
+            exit()
         print(prompt)
         # text_content = [text_tokenizer(query)] + [text_tokenizer(prompt)]
-        text_content = [text_tokenizer(prompt)] + [text_tokenizer(f"a photo of the {c}") for c in key_text]
         text_inputs = torch.cat(text_content).to(device)
         text_features = fast_path_vlm.encode_text(text_inputs)
 
@@ -426,6 +434,7 @@ def ranking_patch_t2p(bbox_coordinate_list, t2p_similarity, top_k=10):
     values, index = t2p_similarity.topk(top_k)
     # should be 5 * 3 = 15 candidates
     # top1patch_per_keyphrase = values[:, :1].flatten().tolist()
+    # all key words together, most frequent appeared patches (topk)
     flat_values = values.flatten().tolist()
     flat_index = index.flatten().tolist()
     counter = Counter(flat_index)
@@ -445,6 +454,8 @@ def ranking_patch_t2p(bbox_coordinate_list, t2p_similarity, top_k=10):
     index_select = list(select_index_similarity_dict.keys())
     similarity_select = list(select_index_similarity_dict.values())
 
+
+    # top1 patch for each text keywords
     top1patch_value_per_keyphrase = values[:, :1].flatten().tolist()
     top1patch_index_per_keyphrase = index[:, :1].flatten().tolist()
     assert set(top_k_element_index) == set(index_select)
@@ -680,3 +691,69 @@ class CCDataset(Dataset):
 
     def __len__(self):
         return len(self.data)
+
+
+def bbox_location(image_width, image_height, bbox):
+    """
+    :param image_width:
+    :param image_height:
+    :param bbox: old: (up left x, up left y, w, h), new: (x1, y1, x2, y2)
+    :return:
+    """
+    # Define the 3x3 grid dimensions
+    grid_width = image_width / 3
+    grid_height = image_height / 3
+
+    # Extract bbox details
+    x1, y1, x2, y2 = bbox
+    x = x1
+    y = y1
+    w = x2 - x1
+    h = y2 - y1
+    # x, y, w, h = bbox
+
+    # Define the boundaries for each of the 9 regions
+    regions = {
+        "Top-left":      (grid_width * 0, grid_height * 0, grid_width, grid_height),
+        "Top-center":    (grid_width * 1, grid_height * 0, grid_width, grid_height),
+        "Top-right":     (grid_width * 2, grid_height * 0, grid_width, grid_height),
+        "Center-left":   (grid_width * 0, grid_height * 1, grid_width, grid_height),
+        "Center":        (grid_width * 1, grid_height * 1, grid_width, grid_height),
+        "Center-right":  (grid_width * 2, grid_height * 1, grid_width, grid_height),
+        "Bottom-left":   (grid_width * 0, grid_height * 2, grid_width, grid_height),
+        "Bottom-center": (grid_width * 1, grid_height * 2, grid_width, grid_height),
+        "Bottom-right":  (grid_width * 2, grid_height * 2, grid_width, grid_height)
+    }
+
+    def intersection_area(target_bbox, region_bbox):
+        """
+
+        :param target_bbox: x1, y1, w1, h1
+        :param region_bbox: x2, y2, w2, h2
+        :return:
+        """
+
+        x1, y1, w1, h1 = target_bbox
+        x2, y2, w2, h2 = region_bbox
+
+        # Calculate the overlap boundaries
+        xA = max(x1, x2)
+        yA = max(y1, y2)
+        xB = min(x1 + w1, x2 + w2)
+        yB = min(y1 + h1, y2 + h2)
+        intersection_area = max(0, xB - xA) * max(0, yB - yA)
+
+        return intersection_area
+
+    # Calculate intersection area for each region
+    overlaps = {
+        region: intersection_area([x, y, w, h], [rx, ry, rw, rh])
+        for region, (rx, ry, rw, rh) in regions.items()
+    }
+
+    # Return the region with the maximum overlap
+    first_return = max(overlaps, key=overlaps.get)
+    # del overlaps[max(overlaps, key=overlaps.get)]
+    # second_return = max(overlaps, key=overlaps.get)
+    # return "{} and {} blocks".format(first_return, second_return)
+    return first_return
