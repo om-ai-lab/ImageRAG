@@ -4,7 +4,7 @@ import re
 import argparse
 from tqdm import tqdm 
 parser = argparse.ArgumentParser()
-parser.add_argument("--results_file", type=str, default='/media/zilun/fanxiang4t/GRSM/ImageRAG_git/data/eval/answer_mme-realworld-8B-detection-fit-union-obj-toi-gt-test.jsonl')
+parser.add_argument("--results_file", type=str, default='/media/zilun/fanxiang4t/GRSM/ImageRAG_git/codebase/inference/MME-RealWorld-RS/answer_baseline-mme-lite_8B_detection-gt-cotexplicit.jsonl')
 args = parser.parse_args()
 
 TASKS = [
@@ -31,9 +31,17 @@ def extract_characters_regex(s, choices):
         "The correct option is",
         "Best answer:"
         "Best option:",
+        "Answer",
+        # "Option"
     ]
     for answer_prefix in answer_prefixes:
-        s = s.replace(answer_prefix, "")
+        # s = s.replace(answer_prefix, "")
+        if answer_prefix in s:
+            s = s.split(answer_prefix)[-1]
+            break
+        elif answer_prefix.lower() in s:
+            s = s.split(answer_prefix.lower())[-1]
+            break
 
     if len(s.split()) > 10 and not re.search("[ABCDE]", s):
         return ""
@@ -66,7 +74,8 @@ for task in TASKS:
     results[f'{task}'] = {}
     for subtask in SUBTASKS:
         results[f'{task}'][f'{subtask}'] = {}
-        
+
+index = 1
 for question in tqdm(data):
     Task = question['Task']
     Subtask = question['Subtask']
@@ -80,7 +89,7 @@ for question in tqdm(data):
     
     text = extract_characters_regex(text, question['Answer choices'])
     # 检查 Ground Truth 和 text 是否相同
-    print(ground_truth, text)
+    print(index, ground_truth, text)
     cnt = ground_truth == text
     
     if Category not in results[Task][Subtask].keys():
@@ -90,7 +99,7 @@ for question in tqdm(data):
         results[Task][Subtask][f'{Category}']['false'] += 1 - cnt
         results[Task][Subtask][f'{Category}']['is_E'] += text == 'E'
 
-
+    index += 1
 
 sum_all, succ_all = 0, 0
 for task, tasks_values in results.items():
