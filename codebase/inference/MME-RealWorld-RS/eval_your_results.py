@@ -90,8 +90,12 @@ for question in tqdm(data):
     text = extract_characters_regex(text, question['Answer choices'])
     # 检查 Ground Truth 和 text 是否相同
     print(index, ground_truth, text)
-    cnt = ground_truth == text
-    
+
+    if isinstance(ground_truth, str):
+        cnt = ground_truth == text
+    elif isinstance(ground_truth, list):
+        cnt = True if text in ground_truth else False
+
     if Category not in results[Task][Subtask].keys():
         results[Task][Subtask][f'{Category}'] = {'true': cnt, 'false': 1 - cnt, 'is_E': text == 'E'}
     else:
