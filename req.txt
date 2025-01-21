@@ -1,3 +1,4 @@
+transformers=4.37.0
 ray
 lightning
 open_clip_torch
@@ -12,3 +13,9 @@ keybert
 shortuuid
 einops
 keyphrase_vectorizers
+pandas
+sentencepiece
+bitsandbytes
+accelerate
+flash-attn==2.3.6
+httpx[socks]
