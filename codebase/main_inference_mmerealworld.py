@@ -40,6 +40,7 @@ from codebase.text_parser import extract_key_phrases
 
 # export PYTHONPATH=$PYTHONPATH:/data1/zilun/grsm/ImageRAG_git
 # export PYTHONPATH=$PYTHONPATH:/media/zilun/fanxiang4t/GRSM/ImageRAG_git
+# export PYTHONPATH=$PYTHONPATH:/mnt/cfs/zilun/ImageRAG
 
 Image.MAX_IMAGE_PIXELS = None
 
@@ -387,12 +388,16 @@ def inference_internvl(config, questions, ans_file_path, generative_vlm_pack, cl
 
             image = Image.open(image_path).convert('RGB')
             w, h = image.size
-            image_anyres = generative_vlm_dynamic_preprocess(
-                image,
-                max_num=generative_vlm.config.max_dynamic_patch,
-                image_size=generative_vlm.config.vision_config.image_size,
-                use_thumbnail=generative_vlm.config.use_thumbnail,
-            )
+            if config["use_dynamic"]:
+                print("use dynamic res")
+                image_anyres = generative_vlm_dynamic_preprocess(
+                    image,
+                    max_num=generative_vlm.config.max_dynamic_patch,
+                    image_size=generative_vlm.config.vision_config.image_size,
+                    use_thumbnail=generative_vlm.config.use_thumbnail,
+                )
+            else:
+                image_anyres = [image]
             images += image_anyres
             pixel_values = [generative_vlm_transform(image) for image in images]
             pixel_values = torch.stack(pixel_values).to(torch.bfloat16).cuda()
@@ -486,14 +491,16 @@ def inference_internvl(config, questions, ans_file_path, generative_vlm_pack, cl
             image = Image.open(image_path).convert('RGB')
             w, h = image.size
 
-            # image_anyres = generative_vlm_dynamic_preprocess(
-            #     image,
-            #     max_num=generative_vlm.config.max_dynamic_patch,
-            #     image_size=generative_vlm.config.vision_config.image_size,
-            #     use_thumbnail=generative_vlm.config.use_thumbnail,
-            # )
-
-            image_anyres = [image]
+            if config["use_dynamic"]:
+                print("use dynamic res")
+                image_anyres = generative_vlm_dynamic_preprocess(
+                    image,
+                    max_num=generative_vlm.config.max_dynamic_patch,
+                    image_size=generative_vlm.config.vision_config.image_size,
+                    use_thumbnail=generative_vlm.config.use_thumbnail,
+                )
+            else:
+                image_anyres = [image]
 
             images += image_anyres
             pixel_values = [generative_vlm_transform(image) for image in images]
@@ -527,7 +534,8 @@ def inference_internvl(config, questions, ans_file_path, generative_vlm_pack, cl
                 final_instruction += "Additional information:\n"
                 for i, bbox in enumerate(visual_cues):
                     final_instruction += "Sub-patch {} at location <box>[[{:.2f}, {:.2f}, {:.2f}, {:.2f}]]</box>: <image>\n".format(i + 1, *bbox)
-                final_instruction += "Look at {} of the image and answer the question based on the provided additional information (location of sub-patches). \n".format(relative_pos)
+                # final_instruction += "Look at {} of the image and answer the question based on the provided additional information (location of sub-patches). \n".format(relative_pos)
+                final_instruction += "Look at the image and answer the question based on the provided additional information (location of sub-patches). \n"
                 final_instruction += "Question: "
                 final_instruction += question_with_test_template
                 num_patches_list = [pixel_values.size(0) - len(visual_cues), len(visual_cues)]
@@ -553,6 +561,7 @@ def inference_internvl(config, questions, ans_file_path, generative_vlm_pack, cl
                 print(
                     f'Prompt: {question_with_test_template}\n\n GT: {line["Ground truth"]} \n Output: {response}')
                 line['output'] = response
+                line['final_instruction'] = final_instruction
                 ans_file.write(json.dumps(line) + "\n")
                 ans_file.flush()
                 index += 1
