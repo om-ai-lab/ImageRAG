@@ -539,6 +539,53 @@ def inference_internvl(config, questions, ans_file_path, generative_vlm_pack, cl
                 final_instruction += "Question: "
                 final_instruction += question_with_test_template
                 num_patches_list = [pixel_values.size(0) - len(visual_cues), len(visual_cues)]
+
+                # if config["llmvqa_model"]["generation_config"]["consistency"]:
+                #     def parse_api_result(result):
+                #         to_return = []
+                #         for idx, g in enumerate(result['choices']):
+                #             text = g['text']
+                #             logprob = sum(g['logprobs']['token_logprobs'])
+                #             to_return.append((text, logprob))
+                #         to_return = sorted(to_return, key=lambda tup: tup[1], reverse=True)
+                #         to_return = [r[0] for r in to_return]
+                #         return to_return
+                #     generative_vlm_generation_config["num_return_sequences"] = 2
+                #     generative_vlm_generation_config["output_scores"] = 1
+                #
+                #     response = generative_vlm.chat(
+                #         generative_vlm_tokenizer,
+                #         pixel_values,
+                #         final_instruction,
+                #         generative_vlm_generation_config,
+                #         num_patches_list=num_patches_list
+                #     )
+                #
+                #     from collections import Counter
+                #     # self-consistency decoding or greedy decoding.
+                #     result_counter = Counter()
+                #     generations = parse_api_result(response)
+                #     print(len(generations))
+                #     for r in generations:
+                #         ans = safe_execute(r)
+                #         ans = floatify_ans(ans)
+                #         if ans is not None:
+                #             result_counter.update([ans])
+                #
+                #     if len(result_counter) > 0:
+                #         prediction = result_counter.most_common(1)[0][0]
+                #     else:
+                #         prediction = None
+                #
+                # else:
+                #     response = generative_vlm.chat(
+                #         generative_vlm_tokenizer,
+                #         pixel_values,
+                #         final_instruction,
+                #         generative_vlm_generation_config,
+                #         num_patches_list=num_patches_list
+                #     )
+
                 response = generative_vlm.chat(
                     generative_vlm_tokenizer,
                     pixel_values,
@@ -546,6 +593,7 @@ def inference_internvl(config, questions, ans_file_path, generative_vlm_pack, cl
                     generative_vlm_generation_config,
                     num_patches_list=num_patches_list
                 )
+
             else:
                 final_instruction = question_with_test_template
                 response = generative_vlm.chat(
