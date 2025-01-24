@@ -138,9 +138,12 @@ def make_geolocalization_dataset(raw_json_path, save_jsonline_path, split, image
 def make_changedetection_dataset(raw_json_path, save_jsonline_path, split, image_root):
     dumped_data_list = []
     raw_data = load_json_jsonl(raw_json_path)
-    for i, raw_line_data in enumerate(tqdm(raw_data)):
+    all_data = []
+    for raw_line_data in tqdm(raw_data):
+        all_data += raw_line_data
+    for i, raw_line_data in enumerate(tqdm(all_data)):
         single_data = dict()
-        raw_line_data = raw_line_data[0]
+        # raw_line_data = raw_line_data[0]
         user_input = raw_line_data["question"]
         gpt_input = raw_line_data["ground_truth"]
         conv = []
@@ -356,8 +359,8 @@ def merge_train(input_file_path_list, output_file_path):
         data = load_json_jsonl(file_path)
         random.shuffle(data)
         print(len(data))
-        if "geolocalization" in file_path:
-            data = data[:cutoff]
+        # if "geolocalization" in file_path:
+        #     data = data[:cutoff]
         merged_data.extend(data)
     with jsonlines.open(output_file_path, 'w') as writer:
         for obj in tqdm(merged_data):
@@ -375,29 +378,29 @@ def main():
     # destination_directory = '/data1/zilun/grsm/tmp_georsmllm_data/fmow/train'
     # copy_jpg_files(source_directory, destination_directory)
 
-    json_root = "/data1/zilun/grsm/ImageRAG_git/tmp"
+    json_root = "/data1/zilun/grsm/ImageRAG_0111/data/georsmllm_task_data"
 
-    # seg_train_raw_json_path = os.path.join(json_root, "seg_train.json")
+    seg_train_raw_json_path = os.path.join(json_root, "seg_train.json")
     seg_train_processed_json_path = os.path.join(json_root, "seg_train_final.jsonl")
-    # make_segmentation_dataset(seg_train_raw_json_path, seg_train_processed_json_path, "train")
+    make_segmentation_dataset(seg_train_raw_json_path, seg_train_processed_json_path, "train")
 
     # seg_test_raw_json_path = os.path.join(json_root, "seg_test.json")
     # seg_test_processed_json_path = os.path.join(json_root, "seg_test_final.jsonl")
     # make_segmentation_dataset(seg_test_raw_json_path, seg_test_processed_json_path, "test")
 
-    # change_train_raw_json_path = os.path.join(json_root, "changedetection_train.json")
-    change_train_processed_json_path = os.path.join(json_root, "changedetection_train_final.jsonl")
-    # make_changedetection_dataset(change_train_raw_json_path, change_train_processed_json_path, "train", "/data1/zilun/grsm/tmp_georsmllm_data")
+    change_train_raw_json_path = os.path.join(json_root, "change_train.json")
+    change_train_processed_json_path = os.path.join(json_root, "change_train_final.jsonl")
+    make_changedetection_dataset(change_train_raw_json_path, change_train_processed_json_path, "train", "/data1/zilun/grsm/dataset/georsmllm_dataset")
 
     # change_test_raw_json_path = os.path.join(json_root, "changedetection_test.json")
     # change_test_processed_json_path = os.path.join(json_root, "changedetection_test_final.jsonl")
     # make_changedetection_dataset(change_test_raw_json_path, change_test_processed_json_path, "test", "/data1/zilun/grsm/tmp_georsmllm_data")
 
-    # geoloc_train_raw_json_path = os.path.join(json_root, "geolocalization_train.json")
-    geoloc_train_processed_json_path = os.path.join(json_root, "geolocalization_train_final.jsonl")
-    # make_geolocalization_dataset(geoloc_train_raw_json_path, geoloc_train_processed_json_path, "train", "/data1/zilun")
+    geoloc_train_raw_json_path = os.path.join(json_root, "geoloc_train.json")
+    geoloc_train_processed_json_path = os.path.join(json_root, "geoloc_train_final.jsonl")
+    make_geolocalization_dataset(geoloc_train_raw_json_path, geoloc_train_processed_json_path, "train", "/data1/zilun")
 
-    output_file_path = "georsmllm_train.jsonl"
+    output_file_path = os.path.join(json_root, "georsmllm_train.jsonl")
     merge_train(
         [seg_train_processed_json_path, change_train_processed_json_path, geoloc_train_processed_json_path],
         output_file_path
@@ -406,3 +409,12 @@ def main():
 
 if __name__ == "__main__":
     main()
+    # tmp = "/data1/zilun/grsm/ImageRAG_0111/data/georsmllm_task_data/change_train.json"
+    # raw_data = load_json_jsonl(tmp)
+    # print(len(raw_data))
+    # all_data = []
+    # for raw_line_data in tqdm(raw_data):
+    #     all_data += raw_line_data
+    # for data in all_data:
+    #     print(data)
+    # print(len(all_data))
