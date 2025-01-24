@@ -47,6 +47,7 @@ def whrange2bbox(w_range, h_range):
 
 def vis_patches(save_dir, patch_coordinates, img_resize, img_name):
     assert isinstance(patch_coordinates, list)
+    # os.makedirs(save_dir, exist_ok=True)
     coordinate_patchname_dict = dict()
     for level_index, level_content in enumerate(tqdm(patch_coordinates)):
         for patch_index, patch_coordinate in enumerate(level_content):

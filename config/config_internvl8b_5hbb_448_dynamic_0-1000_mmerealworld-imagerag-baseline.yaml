@@ -8,7 +8,7 @@ input_image_dir:
   "/mnt/cfs/zilun/GRSM/mmerealworld-lite/data/imgs"
 
 patch_saving_dir:
-  "patch_save_dir"
+  "patch_save_dir_baseline"
 
 model_input_image_size:
   448
@@ -26,13 +26,13 @@ chunk_idx:
   0
 
 mode:
-  "detection_gt"
+  "imagerag"
 
 paraphrase_model:
     model_name:
       "Qwen2.5-32B-Instruct"
     model_path:
-        "/media/zilun/wd-161/hf_download/Qwen2.5-32B-Instruct"
+        "Qwen2.5-32B-Instruct"
     generation_config:
         temperature:
             1.0
@@ -60,20 +60,20 @@ text_expansion_model:
 
 text_embed_model:
     model_path:
-      "/media/zilun/wd-161/hf_download/all-MiniLM-L6-v2"
+      "/mnt/cfs/zilun/model/all-MiniLM-L6-v2"
 
 fast_vlm_model:
     model_name:
       "georsclip"
     model_path:
-      "/media/zilun/wd-161/RS5M/RS5M_codebase/ckpt/RS5M_ViT-L-14-336.pt"
+      "/mnt/cfs/zilun/model/RS5M_ViT-L-14-336.pt"
 
 
 llmvqa_model:
   model_name:
     "internvl"
   model_path:
-      # "/mnt/cfs/zilun/model/InternVL2_5-8B"
+      "/mnt/cfs/zilun/model/InternVL2_5-8B"
       # "/mnt/cfs/zilun/InternVL25/internvl_chat/work_dirs/internvl_chat_v2_5/InternVL2_5-8B_lora_vqa10k_zoom2k_Robust_merged"
       # "/mnt/cfs/zilun/InternVL25/internvl_chat/work_dirs/internvl_chat_v2_5/InternVL2_5-8B_lora_vqa10k_zoom2k_merged"
       # "/mnt/cfs/zilun/InternVL25/internvl_chat/work_dirs/internvl_chat_v2_5/InternVL2_5-8B_lora_vqa400k_zoom2k_merged"
@@ -84,7 +84,7 @@ llmvqa_model:
       # /mnt/cfs/zilun/InternVL25/internvl_chat/work_dirs/internvl_chat_v2_5/InternVL2_5-8B_lora32_vqa10k_zoom4k_merged
       # /mnt/cfs/zilun/InternVL25/internvl_chat/work_dirs/internvl_chat_v2_5/InternVL2_5-8B_lora32_vqa10k_zoom4k_2epoch_merged
       # /mnt/cfs/zilun/InternVL25/internvl_chat/work_dirs/internvl_chat_v2_5/InternVL2_5-8B_lora32_vqa10k_zoom4k_5epoch_merged
-      /mnt/cfs/zilun/InternVL25/internvl_chat/work_dirs/internvl_chat_v2_5/InternVL2_5-8B_lora32_vqa10k_zoom4k_confidence_2epoch_merged
+      # /mnt/cfs/zilun/InternVL25/internvl_chat/work_dirs/internvl_chat_v2_5/InternVL2_5-8B_lora32_vqa10k_zoom4k_confidence_2epoch_merged
 
 
   load_in_8bit:
@@ -103,26 +103,26 @@ llmvqa_model:
 
 vector_database:
     meta_pkl_path:
-      "/media/zilun/fanxiang4t/GRSM/ImageRAG_git/data/georsclip_feat_label_all_server.pkl"
+      "/mnt/cfs/zilun/model/georsclip_feat_label_all_server.pkl"
     img_dir:
-      "/media/zilun/mx500/ImageRAG_database/cropped_img"
+      "/mnt/cfs/zilun/ImageRAG/cropped_img"
     text_vector_database_dir:
-      "/media/zilun/fanxiang4t/GRSM/IRAG/ImageRAG_git/codebase/vector_database/text_vector_database"
+      "/mnt/cfs/zilun/ImageRAG/vector_database_baseline/text_vector_database_baseline"
     image_vector_database_dir:
-      "/media/zilun/fanxiang4t/GRSM/IRAG/ImageRAG_git/codebase/vector_database/image_vector_database"
+      "/mnt/cfs/zilun/ImageRAG/vector_database_baseline/image_vector_database_baseline"
     mm_vector_database_dir:
-      "/media/zilun/fanxiang4t/GRSM/IRAG/ImageRAG_git/codebase/vector_database/mm_vector_database"
+      "/mnt/cfs/zilun/ImageRAG/vector_database_baseline/mm_vector_database_baseline"
 
 question_file_path:
   "/mnt/cfs/zilun/ImageRAG/codebase/inference/MME-RealWorld-RS/MME-RealWorld-Lite-toi_corrected.json"
 
 answers_file_path:
-  "/mnt/cfs/zilun/ImageRAG/codebase/inference/MME-RealWorld-RS/answer-corrected_zoom4klora32-mme-lite_8B_detection-gt-vqa10kzoom4k-2epoch-confidence-cot.jsonl"
+  "/mnt/cfs/zilun/ImageRAG/codebase/inference/MME-RealWorld-RS/answer-MMERealWorldlite_lora32-baseline-nocot.jsonl"
 
 batch_size:
   1
 
 test_prompt:
-  # "Select the best answer to the above multiple-choice question based on the image. Respond with only the letter (A, B, C, D, or E) of the correct option."
- "Select the best answer to the above multiple-choice question based on the image. Provide the thinking process and give the response in the end with the letter (A, B, C, D, or E) of the correct option."
+  "Select the best answer to the above multiple-choice question based on the image. Respond with only the letter (A, B, C, D, or E) of the correct option."
+#  "Select the best answer to the above multiple-choice question based on the image. Provide the thinking process and give the response in the end with the letter (A, B, C, D, or E) of the correct option."
 #  "Select the best answer to the above multiple-choice question based on the image. Let’s think step by step, and give the final response with the letter (A, B, C, D, or E) of the correct option."
