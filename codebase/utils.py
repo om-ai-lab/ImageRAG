@@ -146,43 +146,57 @@ def collect_fn(batch):
     return batch_img_list, bbox_coordinate_list
 
 
-def extract_vlm_img_text_feat(query, key_text, coordinate_patchname_dict, patch_saving_dir, img_preprocess, text_tokenizer, fast_path_vlm, img_batch_size):
+def extract_vlm_img_text_feat(query, key_text, coordinate_patchname_dict, patch_saving_dir, img_preprocess, text_tokenizer, fast_path_vlm, img_batch_size, feat_saving_dir, fastvlm_encoder_name):
     device = fast_path_vlm.logit_scale.device
-    patch_dataset = CCDataset(coordinate_patchname_dict, patch_saving_dir, img_preprocess)
-    patch_dataloader = DataLoader(patch_dataset, pin_memory=True, batch_size=img_batch_size, num_workers=os.cpu_count() // 2, shuffle=False, collate_fn=collect_fn)
+    visfeat_saving_path = os.path.join(feat_saving_dir, "{}_vis_feat.pkl".format(fastvlm_encoder_name))
 
+    if os.path.exists(visfeat_saving_path):
+        image_features, bbox_coordinate_list = pkl.load(open(visfeat_saving_path, "rb"))
+    else:
+        with torch.no_grad(), torch.cuda.amp.autocast():
+            patch_dataset = CCDataset(coordinate_patchname_dict, patch_saving_dir, img_preprocess)
+            patch_dataloader = DataLoader(patch_dataset, pin_memory=True, batch_size=img_batch_size, num_workers=os.cpu_count() // 2, shuffle=False, collate_fn=collect_fn)
+            image_feature_list = []
+            bbox_coordinate_list = []
+            for batch_img, bbox_coordinate in tqdm(patch_dataloader):
+                batch_img = batch_img.to(device)
+                image_features = fast_path_vlm.encode_image(batch_img)
+                image_feature_list.append(image_features)
+                bbox_coordinate_list.extend(bbox_coordinate)
+            image_features = torch.cat(image_feature_list)
+            save_dict = {
+                "image_features": image_features,
+                "bbox_coordinate_list": bbox_coordinate_list
+            }
+            pkl.dump(
+                save_dict,
+                open(visfeat_saving_path, "wb")
+            )
+
+    # text_content = [text_tokenizer(query)] + [text_tokenizer(f"a photo of the {c}") for c in key_text]
+    # text_content = [text_tokenizer(f"a photo of the {c}") for c in key_text]
+    # text_content = [text_tokenizer(query)]
+
+    prompt = "a photo includes "
+    if len(key_text) == 1:
+        prompt += "{}".format(key_text[0])
+        text_content = [text_tokenizer(prompt)]
+
+    elif len(key_text) > 1:
+        for c in key_text:
+            # c = c.replace("the ", "")
+            if c != key_text[-1]:
+                prompt += "{}, ".format(c)
+            else:
+                prompt += "and {}.".format(c)
+        text_content = [text_tokenizer(prompt)] + [text_tokenizer(f"a photo of the {c}") for c in key_text]
+    else:
+        print("No keyword detected")
+        exit()
+    print(prompt)
+    # text_content = [text_tokenizer(query)] + [text_tokenizer(prompt)]
+    text_inputs = torch.cat(text_content).to(device)
     with torch.no_grad(), torch.cuda.amp.autocast():
-        image_feature_list = []
-        bbox_coordinate_list = []
-        for batch_img, bbox_coordinate in tqdm(patch_dataloader):
-            batch_img = batch_img.to(device)
-            image_features = fast_path_vlm.encode_image(batch_img)
-            image_feature_list.append(image_features)
-            bbox_coordinate_list.extend(bbox_coordinate)
-        image_features = torch.cat(image_feature_list)
-
-        # text_content = [text_tokenizer(query)] + [text_tokenizer(f"a photo of the {c}") for c in key_text]
-        # text_content = [text_tokenizer(f"a photo of the {c}") for c in key_text]
-        # text_content = [text_tokenizer(query)]
-        prompt = "a photo includes "
-        if len(key_text) == 1:
-            prompt += "{}".format(key_text[0])
-            text_content = [text_tokenizer(prompt)]
-
-        elif len(key_text) > 1:
-            for c in key_text:
-                # c = c.replace("the ", "")
-                if c != key_text[-1]:
-                    prompt += "{}, ".format(c)
-                else:
-                    prompt += "and {}.".format(c)
-            text_content = [text_tokenizer(prompt)] + [text_tokenizer(f"a photo of the {c}") for c in key_text]
-        else:
-            print("No keyword detected")
-            exit()
-        print(prompt)
-        # text_content = [text_tokenizer(query)] + [text_tokenizer(prompt)]
-        text_inputs = torch.cat(text_content).to(device)
         text_features = fast_path_vlm.encode_text(text_inputs)
 
     return image_features, text_features, bbox_coordinate_list
@@ -515,9 +529,7 @@ def meta_df2clsimg_dict(meta_vector_database_df_selected, vectordatabase_dir):
         lambda row: os.path.join(vectordatabase_dir, row['dataset'], row['img_name_list']), axis=1
     )
     cls_img_dict = meta_vector_database_df_selected.groupby('cls_list')['img_path_list'].apply(list).to_dict()
-
     return cls_img_dict
-
 
 def img_reduce(cls_img_dict, vlm, img_preprocess, reduce_fn="mean"):
     device = vlm.logit_scale.device
@@ -544,6 +556,10 @@ def img_reduce(cls_img_dict, vlm, img_preprocess, reduce_fn="mean"):
     if reduce_fn == "mean":
         for class_label in tqdm(cls_feat_dict):
             cls_feat_dict[class_label] = cls_feat_dict[class_label].mean(-1)
+    elif reduce_fn == "cluster":
+        pass
+    elif reduce_fn == "rerank_topn":
+        pass
 
     return cls_feat_dict
 
@@ -588,32 +604,34 @@ def ranking_patch_visualcue2patch(bbox_coordinate_list, visualcue2patch_similari
     return selected_bbox_coordinate_list, candidate_similarity
 
 
-def reduce_visual_cue_per_cls(visual_cue_candidates_dict, reduce_fn):
+def reduce_visual_cue_per_cls(visual_cue_candidates_dict, reduce_fn, need_feat_normalize):
     reduced_visual_cue_candidates_dict = dict()
     if reduce_fn == "mean":
         for class_label in tqdm(visual_cue_candidates_dict):
-            reduced_visual_cue_candidates_dict[class_label] = visual_cue_candidates_dict[class_label].mean(0)
-
+            vsd_cues_feats = visual_cue_candidates_dict[class_label]
+            if need_feat_normalize:
+                vsd_cues_feats /= vsd_cues_feats.norm(dim=-1, keepdim=True)
+            reduced_visual_cue_candidates_dict[class_label] = vsd_cues_feats.mean(0)
     return reduced_visual_cue_candidates_dict
 
 
-def select_visual_cue(vlm_image_feats, bbox_coordinate_list, visual_cue_candidates_dict, need_feat_normalize=True):
+def select_visual_cue(vlm_image_feats, bbox_coordinate_list, visual_cue_candidates_dict, need_feat_normalize):
     # (166, 512)
+    """
+    vlm_image_feats: patch feats for single image
+    bbox_coordinate_list: corresponding coord for each feat
+    visual_cue_candidates_dict: related feats in vsd
+    """
+    if need_feat_normalize:
+        vlm_image_feats /= vlm_image_feats.norm(dim=-1, keepdim=True)
     patch_feats = vlm_image_feats.detach().cpu().type(torch.float32)
-
     # (3, 512)
     visual_cue_candidates_stacked = []
     for visual_cue_candidates in visual_cue_candidates_dict:
         visual_cue_candidates_stacked.append(visual_cue_candidates_dict[visual_cue_candidates].detach().cpu().type(torch.float32).unsqueeze(0))
     visual_cue_candidates_stacked = torch.cat(visual_cue_candidates_stacked)
     visual_cue_feats = visual_cue_candidates_stacked
-
-    with torch.no_grad(), torch.cuda.amp.autocast():
-        if need_feat_normalize:
-            patch_feats /= patch_feats.norm(dim=-1, keepdim=True)
-            visual_cue_feats /= visual_cue_feats.norm(dim=-1, keepdim=True)
-        visualcue2patch_similarity = (patch_feats @ visual_cue_feats.t()).t()
-
+    visualcue2patch_similarity = (patch_feats @ visual_cue_feats.t()).t()
     visual_cues = ranking_patch_visualcue2patch(bbox_coordinate_list, visualcue2patch_similarity)
     return visual_cues
 
@@ -625,12 +643,11 @@ def setup_text_vsd(config):
     # Create Chroma vector store
     slow_text_emb_model_path = config["text_embed_model"]["model_path"]
     text_embeddings = HuggingFaceEmbeddings(model_name=slow_text_emb_model_path)
-    text_vectorstore = Chroma(
-        collection_name="vector_store4keyphrase_label_matching",
-        embedding_function=text_embeddings,
-        persist_directory=config["vector_database"]["text_vector_database_dir"],
-        # Where to save data locally, remove if not necessary
-    )
+
+    vsd_wd_flag = False
+    vs_work_dir = os.path.join(config["work_dir"], config["vector_database"]["text_vector_database_dir"])
+    if os.path.exists(vs_work_dir):
+        vsd_wd_flag = True
 
     meta_pkl_path = config["vector_database"]["meta_pkl_path"]
     # 'img_name_list' 'label_list' 'feat'
@@ -652,10 +669,23 @@ def setup_text_vsd(config):
             label2imgname_dict[label].append(img_name)
         imgname2feat_dict[img_name] = feat
 
-    labels_in_database = list(label2imgname_dict.keys())
-    meta = [{'type': 'text'}] * len(labels_in_database)
-    text_vectorstore.add_texts(texts=labels_in_database, metadatas=meta)
-
+    if not vsd_wd_flag:
+        text_vectorstore = Chroma(
+            collection_name="vector_store4keyphrase_label_matching",
+            embedding_function=text_embeddings,
+            persist_directory=vs_work_dir,
+            # Where to save data locally, remove if not necessary
+        )
+        labels_in_database = list(label2imgname_dict.keys())
+        meta = [{'type': 'text'}] * len(labels_in_database)
+        text_vectorstore.add_texts(texts=labels_in_database, metadatas=meta)
+    else:
+        text_vectorstore = Chroma(
+            collection_name="vector_store4keyphrase_label_matching",
+            embedding_function=text_embeddings,
+            persist_directory=vs_work_dir,
+            # Where to save data locally, remove if not necessary
+        )
     return text_vectorstore, label2imgname_dict, imgname2label_dict, imgname2feat_dict
 
 

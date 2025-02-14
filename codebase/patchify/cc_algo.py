@@ -45,7 +45,7 @@ def whrange2bbox(w_range, h_range):
     return w_range[0], h_range[0], w_range[1] - w_range[0], h_range[1] - h_range[0]
 
 
-def vis_patches(save_dir, patch_coordinates, img_resize, img_name):
+def vis_cc_patches(save_dir, patch_coordinates, img_resize, img_name):
     assert isinstance(patch_coordinates, list)
     # os.makedirs(save_dir, exist_ok=True)
     coordinate_patchname_dict = dict()
@@ -62,7 +62,7 @@ def vis_patches(save_dir, patch_coordinates, img_resize, img_name):
     return coordinate_patchname_dict
 
 
-def img_2patch(img, img_name, c_denom=10, dump_imgs=False, patch_saving_dir=None):
+def cc_patchify(img, img_name, c_denom=10, dump_imgs=False, patch_saving_dir=None):
     """
     Get image patches with patch-cc scheme
     (bs, 3, h, w) -> (bs, p, 3, h_p, w_p)
@@ -116,7 +116,7 @@ def img_2patch(img, img_name, c_denom=10, dump_imgs=False, patch_saving_dir=None
     patch_container_deduplicate = [patch_container[i] for i in index_array]
 
     if dump_imgs:
-        patch_container_deduplicate = vis_patches(save_dir=patch_saving_dir, patch_coordinates=patch_container_deduplicate, img_resize=img_resize, img_name=img_name)
+        patch_container_deduplicate = vis_cc_patches(save_dir=patch_saving_dir, patch_coordinates=patch_container_deduplicate, img_resize=img_resize, img_name=img_name)
 
     return img_resize, patch_container_deduplicate
 

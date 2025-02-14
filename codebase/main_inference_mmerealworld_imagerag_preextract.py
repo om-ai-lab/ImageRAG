@@ -35,7 +35,7 @@ from codebase.utils import (setup_vlm_model, set_up_paraphrase_model, setup_vqal
                             reduce_visual_cue_per_cls, setup_text_vsd, bbox_location)
 from codebase.sglang_util import get_paraphase_response, get_keyword_response, get_text_expansion_response
 from codebase.utils import load_yaml
-from codebase.cc_algo import img_2patch, vis_patches
+from codebase.patchify import cc_patchify, vis_cc_patches, vit_patchify
 from codebase.text_parser import extract_key_phrases
 
 # export PYTHONPATH=$PYTHONPATH:/data1/zilun/grsm/ImageRAG_git
@@ -130,7 +130,7 @@ def image_rag(config, contrastive_vlm_pack, line, client, logger, text_vectorsto
               vsd_imgname2label_dict, vsd_imgname2feat_dict, text_paraphrase, text_expand):
     # responses = image_rag(config, generative_vlm, generative_vlm_tokenizer, generative_vlm_generation_config, image_tensors, prompts, num_patches_list, question_text_only_list, line, client, logger, paraphrase=False)
 
-    patch_saving_dir = config['patch_saving_dir']
+    patch_saving_dir = os.path.join(config['work_dir'], config['patch_saving_dir'])
     fast_path_T = int(config['fast_path_T'])
     paraphrase_model_config = config['paraphrase_model']
     kw_model_config = config['kw_model']
@@ -149,14 +149,6 @@ def image_rag(config, contrastive_vlm_pack, line, client, logger, text_vectorsto
 
     width, height = input_uhr_image.size
     logger.info("original image width and height: {}, {}".format(width, height))
-    # input_uhr_image.close()
-
-    # pixel_values = generative_vlm_load_image(
-    #     image_path,
-    #     input_size=model.config.vision_config.image_size,
-    #     max_num=model.config.max_dynamic_patch,
-    #     use_dynamic=True
-    # ).to(torch.bfloat16).cuda()
 
     if text_paraphrase:
         paraphrase_result = get_paraphase_response(
@@ -186,19 +178,23 @@ def image_rag(config, contrastive_vlm_pack, line, client, logger, text_vectorsto
 
     logger.info("Final Key Phrases: {}".format(query_keywords))
 
-    # patchify -> padded image and dict of bbox - patch save name
-    img_resize, coordinate_patchname_dict = img_2patch(
-        input_uhr_image,
-        image_file.split(".")[0],
-        c_denom=10,
-        dump_imgs=True,
-        # dump_imgs=False, Not working
-        patch_saving_dir=patch_saving_dir
-    )
+    # # patchify -> padded image and dict of bbox - patch save name
+    # img_resize, coordinate_patchname_dict = cc_patchify(
+    #     input_uhr_image,
+    #     image_file.split(".")[0],
+    #     c_denom=10,
+    #     dump_imgs=True,
+    #     # dump_imgs=False, Not working
+    #     patch_saving_dir=patch_saving_dir
+    # )
+
+    img_resize, coordinate_patchname_dict, image_save_dir = vit_patchify(image_path, patch_saving_dir, patch_size=config['model_input_image_size'])
+
     logger.info(
         "resize image to width and height: {}, {}, for patchify.".format(img_resize.size[0], img_resize.size[1]))
 
     fast_path_vlm, img_preprocess, text_tokenizer = contrastive_vlm_pack
+    fast_path_vlm_name = os.path.splitext(os.path.basename(config["fast_vlm_model"]["model_path"]))[0]
     # Fast Path
     vlm_image_feats, vlm_text_feats, bbox_coordinate_list = extract_vlm_img_text_feat(
         question,
@@ -208,19 +204,21 @@ def image_rag(config, contrastive_vlm_pack, line, client, logger, text_vectorsto
         img_preprocess,
         text_tokenizer,
         fast_path_vlm,
-        img_batch_size=50
+        img_batch_size=50,
+        feat_saving_dir=image_save_dir,
+        fastvlm_encoder_name=fast_path_vlm_name
     )
 
     t2p_similarity = calculate_similarity_matrix(vlm_image_feats, vlm_text_feats, fast_path_vlm.logit_scale.exp())
+    # visual_cue (topn, 4) -> [[x1, y1, x2, y2], ...]
     visual_cue, corresponding_similarity = ranking_patch_t2p(bbox_coordinate_list, t2p_similarity, top_k=5)
     logger.info("Ranked Patch Shape: {}".format(visual_cue.shape))
     logger.info("Corresponding similarity: {}".format(corresponding_similarity))
 
     # pdb.set_trace()
-
     # Slow Path
     if max(corresponding_similarity) < fast_path_T:
-        logger.info("fast path similarity does not meet the threshold, choose the slow path")
+        logger.info("fast path similarity does not meet the threshold {}, choose the slow path".format(fast_path_T))
 
         if text_expand:
             if not text_expansion_model_config:
@@ -250,7 +248,7 @@ def image_rag(config, contrastive_vlm_pack, line, client, logger, text_vectorsto
         selected_label_names = []
         for expanded_query_text in expanded_query_text_dict:
             results = text_vectorstore.similarity_search_with_score(
-                expanded_query_text, k=5
+                expanded_query_text, k=3
             )
             for res, score in results:
                 # * [SIM=1.726390] The stock market is down 500 points today due to fears of a recession. [{'source': 'news'}]
@@ -258,8 +256,6 @@ def image_rag(config, contrastive_vlm_pack, line, client, logger, text_vectorsto
                 selected_label_names.append(res.page_content)
         selected_label_name = list(set(selected_label_names))
         print(selected_label_names)
-
-        # img_name_selected_per_cls = [vsd_label2imgname_dict[label] for label in selected_label_name]
 
         # label -> feats dict
         visual_cue_candidates_dict = dict()
@@ -272,21 +268,8 @@ def image_rag(config, contrastive_vlm_pack, line, client, logger, text_vectorsto
                 img_feat_selected_per_cls.append(feat)
             img_feat_selected_per_cls = torch.cat(img_feat_selected_per_cls)
             visual_cue_candidates_dict[label] = img_feat_selected_per_cls
-
-        reduced_visual_cue_per_cls = reduce_visual_cue_per_cls(visual_cue_candidates_dict, reduce_fn="mean")
-
-        # meta_vector_database_df_selected = meta_vector_database_df[meta_vector_database_df['label_list'].isin(selected_label_name)]
-        # reduced_img_group = meta_df2clsimg_dict(meta_vector_database_df_selected, config['vector_database']['img_dir'])
-        # visual_cue_candidates_dict = img_reduce(reduced_img_group, fast_path_vlm, img_preprocess)
-
-        visual_cue, visual_cue_similarity = select_visual_cue(vlm_image_feats, bbox_coordinate_list,
-                                                              reduced_visual_cue_per_cls)
-
-        # visual_cues.append(visual_cue)
-    # else:
-    #     visual_cues.append(visual_cue)
-    # if len(visual_cues) == 0:
-    #     visual_cues.append(np.array([0, 0, width, height]))
+        reduced_visual_cue_per_cls = reduce_visual_cue_per_cls(visual_cue_candidates_dict, reduce_fn="mean", need_feat_normalize=True)
+        visual_cue, visual_cue_similarity = select_visual_cue(vlm_image_feats, bbox_coordinate_list, reduced_visual_cue_per_cls, need_feat_normalize=True)
 
     return image_path, visual_cue, question_with_test_template, query_keywords
 
@@ -664,7 +647,7 @@ def inference_internvl(config, questions, ans_file_path, generative_vlm_pack, cl
                     num_patches_list=tile_num_list
                 )
 
-                print(f'Prompt: {question_with_test_template}\n\n \GT: {line["Ground truth"]} \n Output: {response}')
+                print(f'Prompt: {question_with_test_template}\n\n GT: {line["Ground truth"]} \n Output: {response}')
                 line['output'] = response
                 ans_file.write(json.dumps(line) + "\n")
                 ans_file.flush()
