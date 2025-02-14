@@ -251,7 +251,7 @@ def image_rag(config, contrastive_vlm_pack, line, client, logger, text_vectorsto
                 expanded_query_text, k=3
             )
             for res, score in results:
-                # * [SIM=1.726390] The stock market is down 500 points today due to fears of a recession. [{'source': 'news'}]
+                # * [SIM=1.726390] The stock market is down 500 points today due to fears of a recession. [{'source': 'news'}] default l2
                 print(f"Query:={expanded_query_text_dict[expanded_query_text]} * [SIM={score:3f}] {res.page_content}")
                 selected_label_names.append(res.page_content)
         selected_label_name = list(set(selected_label_names))
@@ -271,7 +271,7 @@ def image_rag(config, contrastive_vlm_pack, line, client, logger, text_vectorsto
         reduced_visual_cue_per_cls = reduce_visual_cue_per_cls(visual_cue_candidates_dict, reduce_fn="mean", need_feat_normalize=True)
         visual_cue, visual_cue_similarity = select_visual_cue(vlm_image_feats, bbox_coordinate_list, reduced_visual_cue_per_cls, need_feat_normalize=True)
 
-    return image_path, visual_cue, question_with_test_template, query_keywords
+    return image_path, visual_cue, visual_cue_similarity, question_with_test_template, query_keywords
 
 
 def inference_internvl(config, questions, ans_file_path, generative_vlm_pack, client, logger):
@@ -584,7 +584,7 @@ def inference_internvl(config, questions, ans_file_path, generative_vlm_pack, cl
         contrastive_vlm_pack = setup_vlm_model(fast_vlm_model_path, fast_vlm_model_name, device)
         text_vectorstore, vsd_label2imgname_dict, vsd_imgname2label_dict, vsd_imgname2feat_dict = setup_text_vsd(config)
         for line in tqdm(questions):
-            image_path, visual_cues, question_with_test_template, query_keywords = image_rag(
+            image_path, visual_cues, visual_cues_similarity, question_with_test_template, query_keywords = image_rag(
                 config, contrastive_vlm_pack, line, client, logger,
                 text_vectorstore, vsd_label2imgname_dict, vsd_imgname2label_dict, vsd_imgname2feat_dict,
                 text_paraphrase=False, text_expand=False

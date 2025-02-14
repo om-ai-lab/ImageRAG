@@ -151,7 +151,8 @@ def extract_vlm_img_text_feat(query, key_text, coordinate_patchname_dict, patch_
     visfeat_saving_path = os.path.join(feat_saving_dir, "{}_vis_feat.pkl".format(fastvlm_encoder_name))
 
     if os.path.exists(visfeat_saving_path):
-        image_features, bbox_coordinate_list = pkl.load(open(visfeat_saving_path, "rb"))
+        save_dict = pkl.load(open(visfeat_saving_path, "rb"))
+        image_features, bbox_coordinate_list = save_dict["image_features"], save_dict["bbox_coordinate_list"]
     else:
         with torch.no_grad(), torch.cuda.amp.autocast():
             patch_dataset = CCDataset(coordinate_patchname_dict, patch_saving_dir, img_preprocess)
@@ -669,23 +670,18 @@ def setup_text_vsd(config):
             label2imgname_dict[label].append(img_name)
         imgname2feat_dict[img_name] = feat
 
+    text_vectorstore = Chroma(
+        collection_name="vector_store4keyphrase_label_matching",
+        embedding_function=text_embeddings,
+        persist_directory=vs_work_dir,
+        # Where to save data locally, remove if not necessary
+    )
+
     if not vsd_wd_flag:
-        text_vectorstore = Chroma(
-            collection_name="vector_store4keyphrase_label_matching",
-            embedding_function=text_embeddings,
-            persist_directory=vs_work_dir,
-            # Where to save data locally, remove if not necessary
-        )
         labels_in_database = list(label2imgname_dict.keys())
         meta = [{'type': 'text'}] * len(labels_in_database)
         text_vectorstore.add_texts(texts=labels_in_database, metadatas=meta)
-    else:
-        text_vectorstore = Chroma(
-            collection_name="vector_store4keyphrase_label_matching",
-            embedding_function=text_embeddings,
-            persist_directory=vs_work_dir,
-            # Where to save data locally, remove if not necessary
-        )
+
     return text_vectorstore, label2imgname_dict, imgname2label_dict, imgname2feat_dict
 
 
