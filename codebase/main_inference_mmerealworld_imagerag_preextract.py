@@ -26,6 +26,7 @@ from transformers import AutoModel, AutoTokenizer
 import yaml
 import gc
 
+
 from codebase.llm_template import paraphrase_template, keyword_template, text_expansion_template
 from codebase.utils import (setup_vlm_model, set_up_paraphrase_model, setup_vqallm, setup_slow_text_encoder_model,
                             calculate_similarity_matrix, extract_vlm_img_text_feat, ranking_patch_t2p,
@@ -35,7 +36,7 @@ from codebase.utils import (setup_vlm_model, set_up_paraphrase_model, setup_vqal
                             reduce_visual_cue_per_cls, setup_text_vsd, bbox_location)
 from codebase.sglang_util import get_paraphase_response, get_keyword_response, get_text_expansion_response
 from codebase.utils import load_yaml
-from codebase.patchify import cc_patchify, vis_cc_patches, vit_patchify
+from codebase.patchify import cc_patchify, vit_patchify
 from codebase.text_parser import extract_key_phrases
 
 # export PYTHONPATH=$PYTHONPATH:/data1/zilun/grsm/ImageRAG_git
@@ -163,14 +164,32 @@ def image_rag(config, contrastive_vlm_pack, line, client, logger, text_vectorsto
 
     if not kw_model_config:
         kw_model_config = paraphrase_model_config
-        while True:
+        trail_budget = 20
+        current_trail = 0
+        while current_trail < trail_budget:
+            print(paraphrase_result)
             query_keywords = get_keyword_response(client, kw_model_config['model_path'], paraphrase_result,
                                                   kw_model_config['generation_config'])
+            print(query_keywords)
             try:
+                query_keywords = re.findall(r'\[[^\]]*\]', query_keywords)[-1]
                 query_keywords = eval(query_keywords)
-                break
+                if len(query_keywords) > 0:
+                    print("Last occurrence of []:", query_keywords)
+                    break
+                else:
+                    print("No match found. Re-parse. Trail {}".format(current_trail))
+                    current_trail += 1
+                    continue
             except Exception as e:
                 print("Bad query keywords: {}".format(query_keywords))
+                continue
+
+        if current_trail == trail_budget:
+            kw_model_path = config["text_embed_model"]["model_path"]
+            kw_model = KeyBERT(model=SentenceTransformer(kw_model_path))
+            query_keywords = extract_key_phrases(paraphrase_result, paraphrase_result, kw_model)
+
     else:
         kw_model_path = kw_model_config['model_path']
         kw_model = KeyBERT(model=SentenceTransformer(kw_model_path))
@@ -189,6 +208,7 @@ def image_rag(config, contrastive_vlm_pack, line, client, logger, text_vectorsto
     # )
 
     img_resize, coordinate_patchname_dict, image_save_dir = vit_patchify(image_path, patch_saving_dir, patch_size=config['model_input_image_size'])
+    # img_resize, coordinate_patchname_dict, image_save_dir = cc_patchify(image_path, patch_saving_dir, c_denom=10)
 
     logger.info(
         "resize image to width and height: {}, {}, for patchify.".format(img_resize.size[0], img_resize.size[1]))
@@ -211,13 +231,13 @@ def image_rag(config, contrastive_vlm_pack, line, client, logger, text_vectorsto
 
     t2p_similarity = calculate_similarity_matrix(vlm_image_feats, vlm_text_feats, fast_path_vlm.logit_scale.exp())
     # visual_cue (topn, 4) -> [[x1, y1, x2, y2], ...]
-    visual_cue, corresponding_similarity = ranking_patch_t2p(bbox_coordinate_list, t2p_similarity, top_k=5)
+    visual_cue, visual_cue_similarity = ranking_patch_t2p(bbox_coordinate_list, t2p_similarity, top_k=2)
     logger.info("Ranked Patch Shape: {}".format(visual_cue.shape))
-    logger.info("Corresponding similarity: {}".format(corresponding_similarity))
+    logger.info("visual_cue similarity: {}".format(visual_cue_similarity))
 
     # pdb.set_trace()
     # Slow Path
-    if max(corresponding_similarity) < fast_path_T:
+    if max(visual_cue_similarity) < fast_path_T:
         logger.info("fast path similarity does not meet the threshold {}, choose the slow path".format(fast_path_T))
 
         if text_expand:
@@ -228,7 +248,7 @@ def image_rag(config, contrastive_vlm_pack, line, client, logger, text_vectorsto
                                                                        query_keywords,
                                                                        text_expansion_model_config['generation_config'])
             else:
-                print("Not Implemented")
+                logger.info("Not Implemented")
                 exit()
         else:
             expanded_query_text_dict = dict()
@@ -252,24 +272,28 @@ def image_rag(config, contrastive_vlm_pack, line, client, logger, text_vectorsto
             )
             for res, score in results:
                 # * [SIM=1.726390] The stock market is down 500 points today due to fears of a recession. [{'source': 'news'}] default l2
-                print(f"Query:={expanded_query_text_dict[expanded_query_text]} * [SIM={score:3f}] {res.page_content}")
-                selected_label_names.append(res.page_content)
-        selected_label_name = list(set(selected_label_names))
-        print(selected_label_names)
+                logger.info(f"Query:={expanded_query_text_dict[expanded_query_text]} * [SIM={score:3f}] {res.page_content}")
+                if score <= 1:
+                    selected_label_names.append(res.page_content)
 
-        # label -> feats dict
-        visual_cue_candidates_dict = dict()
+        if len(selected_label_names) > 0:
+            selected_label_names = list(set(selected_label_names))
+            logger.info("Selected labels from VSD: {}".format(selected_label_names))
+            # label -> feats dict
+            visual_cue_candidates_dict = dict()
 
-        for label in selected_label_name:
-            img_feat_selected_per_cls = []
-            img_names = vsd_label2imgname_dict[label]
-            for img_name in img_names:
-                feat = vsd_imgname2feat_dict[img_name].unsqueeze(0)
-                img_feat_selected_per_cls.append(feat)
-            img_feat_selected_per_cls = torch.cat(img_feat_selected_per_cls)
-            visual_cue_candidates_dict[label] = img_feat_selected_per_cls
-        reduced_visual_cue_per_cls = reduce_visual_cue_per_cls(visual_cue_candidates_dict, reduce_fn="mean", need_feat_normalize=True)
-        visual_cue, visual_cue_similarity = select_visual_cue(vlm_image_feats, bbox_coordinate_list, reduced_visual_cue_per_cls, need_feat_normalize=True)
+            for label in selected_label_names:
+                img_feat_selected_per_cls = []
+                img_names = vsd_label2imgname_dict[label]
+                for img_name in img_names:
+                    feat = vsd_imgname2feat_dict[img_name].unsqueeze(0)
+                    img_feat_selected_per_cls.append(feat)
+                img_feat_selected_per_cls = torch.cat(img_feat_selected_per_cls)
+                visual_cue_candidates_dict[label] = img_feat_selected_per_cls
+            reduced_visual_cue_per_cls = reduce_visual_cue_per_cls(visual_cue_candidates_dict, reduce_fn="mean", need_feat_normalize=True)
+            visual_cue, visual_cue_similarity = select_visual_cue(vlm_image_feats, bbox_coordinate_list, reduced_visual_cue_per_cls, need_feat_normalize=True)
+        else:
+            logger.info("No label text pass the threshold. Cannot find label that match the keywords from query.")
 
     return image_path, visual_cue, visual_cue_similarity, question_with_test_template, query_keywords
 
@@ -584,6 +608,8 @@ def inference_internvl(config, questions, ans_file_path, generative_vlm_pack, cl
         contrastive_vlm_pack = setup_vlm_model(fast_vlm_model_path, fast_vlm_model_name, device)
         text_vectorstore, vsd_label2imgname_dict, vsd_imgname2label_dict, vsd_imgname2feat_dict = setup_text_vsd(config)
         for line in tqdm(questions):
+            gc.collect()
+            torch.cuda.empty_cache()
             image_path, visual_cues, visual_cues_similarity, question_with_test_template, query_keywords = image_rag(
                 config, contrastive_vlm_pack, line, client, logger,
                 text_vectorstore, vsd_label2imgname_dict, vsd_imgname2label_dict, vsd_imgname2feat_dict,
@@ -603,9 +629,10 @@ def inference_internvl(config, questions, ans_file_path, generative_vlm_pack, cl
                 if i == 0:
                     image = generative_vlm_dynamic_preprocess(
                         image,
-                        max_num=generative_vlm.config.max_dynamic_patch,
+                        # max_num=generative_vlm.config.max_dynamic_patch,
+                        max_num=6,
                         image_size=generative_vlm.config.vision_config.image_size,
-                        use_thumbnail=generative_vlm.config.use_thumbnail,
+                        use_thumbnail=False,
                     )
                     images += image
                     tile_num_list.append(len(image))
@@ -635,19 +662,23 @@ def inference_internvl(config, questions, ans_file_path, generative_vlm_pack, cl
             final_instruction += question_with_test_template
 
             line["visual_cue"] = normalized_visual_cues
+            line["visual_cue_confidence"] = visual_cues_similarity
             line["target_of_interest"] = query_keywords
 
+            print(pixel_values.shape)
+            print(tile_num_list)
             with torch.inference_mode():
                 # TODO: visual cues contain full image, duplicate
-                response = generative_vlm.chat(
-                    generative_vlm_tokenizer,
-                    pixel_values,
-                    final_instruction,
-                    generative_vlm_generation_config,
-                    num_patches_list=tile_num_list
-                )
+                # response = generative_vlm.chat(
+                #     generative_vlm_tokenizer,
+                #     pixel_values,
+                #     final_instruction,
+                #     generative_vlm_generation_config,
+                #     num_patches_list=tile_num_list
+                # )
+                response = "F"
 
-                print(f'Prompt: {question_with_test_template}\n\n GT: {line["Ground truth"]} \n Output: {response}')
+                logger.info(f'Prompt: {question_with_test_template}\n\n GT: {line["Ground truth"]} \n Output: {response}')
                 line['output'] = response
                 ans_file.write(json.dumps(line) + "\n")
                 ans_file.flush()
@@ -665,7 +696,7 @@ def inference():
 
     parser = argparse.ArgumentParser(description='Process some integers.')
     parser.add_argument('--cfg_path', type=str,
-                        default='/media/zilun/fanxiang4t/GRSM/ImageRAG0214/config/config_internvl8b_5hbb_448_dynamic_0-1000_mmerealworld-imagerag-zoom4kvqa10k-2epoch_local.yaml',
+                        default='/media/zilun/fanxiang4t/GRSM/ImageRAG0214/config/config_internvl8b_5hbb_448_dynamic_0-1000_mmerealworld-imagerag-zoom4kvqa10k-2epoch_local-nonlite.yaml',
                         help='Path to the configuration file.')
     parser.add_argument('--log_dir', type=str, default='./log', help='Path to the log file.')
     parser.add_argument('--base_url', type=str, default='http://127.0.0.1:30000/v1', help='base url')

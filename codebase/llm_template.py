@@ -21,9 +21,10 @@ Task: Extract keywords or key phrases from a given query sentence.
 
 Guidelines: 
 - Analyze the sentence and identify the important keywords or phrases. These words or phrases should represent the core content or main information of the sentence. 
-- Ensure that the extracted words or phrases are meaningful and can be used to quickly understand the main idea of the sentence.
-- Focus on the names of ground targets from a remote sensing perspective. Include phrases that describe size, shape, color, texture, and spatial relation of targets.
-- Do not include standalone adjectives such as size, shape, color, texture, position, etc. unless they are paired with a target. All adjectives should be part of a phrase that includes a target.
+- Ensure that the extracted words or phrases are meaningful. Focus on the names of ground targets from a remote sensing perspective. 
+- All adjectives should be part of a phrase that includes a target.
+- Do not include standalone adjectives such as adjectives that describe size, shape, color, texture, etc. unless they are paired with a target. 
+- Do not include keywords or phrases that related to position and orientation.
 - Avoid including overly vague words such as 'image', 'picture', 'photo', etc., unless they are part of a more specific phrase that provides additional context.
 
 Example:

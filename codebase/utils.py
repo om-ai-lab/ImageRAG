@@ -178,7 +178,7 @@ def extract_vlm_img_text_feat(query, key_text, coordinate_patchname_dict, patch_
     # text_content = [text_tokenizer(f"a photo of the {c}") for c in key_text]
     # text_content = [text_tokenizer(query)]
 
-    prompt = "a photo includes "
+    prompt = "a photo contains "
     if len(key_text) == 1:
         prompt += "{}".format(key_text[0])
         text_content = [text_tokenizer(prompt)]
@@ -192,7 +192,7 @@ def extract_vlm_img_text_feat(query, key_text, coordinate_patchname_dict, patch_
                 prompt += "and {}.".format(c)
         text_content = [text_tokenizer(prompt)] + [text_tokenizer(f"a photo of the {c}") for c in key_text]
     else:
-        print("No keyword detected")
+        print("No keyword detected, exiting...")
         exit()
     print(prompt)
     # text_content = [text_tokenizer(query)] + [text_tokenizer(prompt)]
@@ -445,7 +445,7 @@ def calculate_similarity_matrix(img_feats, text_feats, logit_scale_exp, need_fea
     return text2patch_similarity
 
 
-def ranking_patch_t2p(bbox_coordinate_list, t2p_similarity, top_k=10):
+def ranking_patch_t2p(bbox_coordinate_list, t2p_similarity, top_k):
     values, index = t2p_similarity.topk(top_k)
     # should be 5 * 3 = 15 candidates
     # top1patch_per_keyphrase = values[:, :1].flatten().tolist()
@@ -564,7 +564,7 @@ def img_reduce(cls_img_dict, vlm, img_preprocess, reduce_fn="mean"):
 
     return cls_feat_dict
 
-def ranking_patch_visualcue2patch(bbox_coordinate_list, visualcue2patch_similarity, top_k=3):
+def ranking_patch_visualcue2patch(bbox_coordinate_list, visualcue2patch_similarity, top_k=2):
     values, index = visualcue2patch_similarity.topk(top_k)
     # should be 5 * 3 = 15 candidates
     # top1patch_per_keyphrase = values[:, :1].flatten().tolist()
@@ -633,7 +633,7 @@ def select_visual_cue(vlm_image_feats, bbox_coordinate_list, visual_cue_candidat
     visual_cue_candidates_stacked = torch.cat(visual_cue_candidates_stacked)
     visual_cue_feats = visual_cue_candidates_stacked
     visualcue2patch_similarity = (patch_feats @ visual_cue_feats.t()).t()
-    visual_cues = ranking_patch_visualcue2patch(bbox_coordinate_list, visualcue2patch_similarity)
+    visual_cues = ranking_patch_visualcue2patch(bbox_coordinate_list, visualcue2patch_similarity, top_k=2)
     return visual_cues
 
 
@@ -675,6 +675,7 @@ def setup_text_vsd(config):
         embedding_function=text_embeddings,
         persist_directory=vs_work_dir,
         # Where to save data locally, remove if not necessary
+        collection_metadata = {"hnsw:space": "l2"},
     )
 
     if not vsd_wd_flag:

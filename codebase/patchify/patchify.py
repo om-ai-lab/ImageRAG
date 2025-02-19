@@ -2,6 +2,7 @@ import os
 from PIL import Image
 import numpy as np
 from tqdm import tqdm
+from math import floor
 
 
 def vit_patchify(image_path, patch_save_root, patch_size=448):
@@ -18,6 +19,8 @@ def vit_patchify(image_path, patch_save_root, patch_size=448):
         original_image (PIL.Image): 原始图像。
         patch_dict (dict): key 是 patch 的坐标 (row, col)，value 是 patch 的相对路径。
     """
+    patch_save_root = os.path.join(patch_save_root, "vit")
+    os.makedirs(patch_save_root, exist_ok=True)
 
     # 提取图像文件名（不包含扩展名）
     image_name = os.path.splitext(os.path.basename(image_path))[0]
@@ -76,7 +79,133 @@ def vit_patchify(image_path, patch_save_root, patch_size=448):
             relative_path = os.path.join(image_name, patch_filename)
             patch_dict[(original_x1, original_y1, original_x2, original_y2)] = relative_path
 
-    return original_image, patch_dict, image_save_dir
+    return resized_image, patch_dict, image_save_dir
+
+
+def cc_patchify(image_path, patch_save_root, c_denom=10):
+    """
+    Get image patches with patch-cc scheme
+    (bs, 3, h, w) -> (bs, p, 3, h_p, w_p)
+    :param img: img torch tensor
+    :return: list of bbox (tl_x, tl_r, w, h), each represents a patch (cover)
+    # img, img_name, c_denom=10, dump_imgs=False, patch_saving_dir=None
+    """
+    patch_save_root = os.path.join(patch_save_root, "cc")
+    os.makedirs(patch_save_root, exist_ok=True)
+
+    # 提取图像文件名（不包含扩展名）
+    image_name = os.path.splitext(os.path.basename(image_path))[0]
+
+    # 打开原始图像
+    original_image = Image.open(image_path)
+    # original_width, original_height = original_image.size
+
+    # 创建保存 patch 的目录
+    image_save_dir = os.path.join(patch_save_root, image_name)
+    print("Make sure cc is in the patch saving dir")
+    assert "cc" in image_save_dir
+    os.makedirs(image_save_dir, exist_ok=True)
+
+    # 检查目录是否为空
+    if os.listdir(image_save_dir):
+        print(f"dir {image_save_dir} non-empty，load existed patch file")
+        return original_image, _load_existing_patches(image_save_dir, image_name), image_save_dir
+
+
+    # 如果图像尺寸不是 patch_size 的整数倍，需要对图像进行 resize
+    w, h = original_image.size
+    if h % c_denom != 0:
+        resize_h = (h // c_denom + 1) * c_denom
+    else:
+        resize_h = h
+
+    if w % c_denom != 0:
+        resize_w = (w // c_denom + 1) * c_denom
+    else:
+        resize_w = w
+
+    img_resize = Image.new('RGB', (resize_w, resize_h), 0)
+
+    left = (resize_w - w) // 2
+    top = (resize_h - h) // 2
+
+    img_resize.paste(original_image, (left, top))
+
+    def vis_cc_patches(save_dir, patch_coordinates, img_resize, img_name):
+        assert isinstance(patch_coordinates, list)
+        # os.makedirs(save_dir, exist_ok=True)
+        coordinate_patchname_dict = dict()
+        for level_index, level_content in enumerate(tqdm(patch_coordinates)):
+            for patch_index, patch_coordinate in enumerate(level_content):
+                h_range, w_range = patch_coordinate
+                crop_box = (w_range[0], h_range[0], w_range[1], h_range[1])
+                patch_img = img_resize.crop(crop_box)
+                patch_filename = f"{image_name}_{w_range[0]}-{h_range[0]}-{w_range[1]}-{h_range[1]}.png"
+                relative_path = os.path.join(image_name, patch_filename)
+                patch_dict[(w_range[0], h_range[0], w_range[1], h_range[1])] = relative_path
+                patch_img.save(os.path.join(save_dir, patch_filename))
+                patch_bbox_coordinate = crop_box
+                coordinate_patchname_dict[patch_bbox_coordinate] = patch_filename
+        return coordinate_patchname_dict
+
+    def index_of_last_apperance(patch_size_list):
+        rd = dict()
+        for i, ele in enumerate(patch_size_list):
+            if ele not in rd:
+                rd[ele] = [i]
+            else:
+                rd[ele].append(i)
+        rl = []
+        vl = []
+        for key in rd:
+            rl.append(max(rd[key]))
+            vl.append(key)
+        return rl, vl
+
+    def return_sliding_windows(img, kernel_h, kernel_w, stride_h, stride_w):
+        result = []
+        w, h = img.size
+        for i in range(0, h, stride_h):
+            for j in range(0, w, stride_w):
+                if i + kernel_h < h:
+                    if j + kernel_w < w:
+                        result.append(([i, i + kernel_h], [j, j + kernel_w]))
+                    else:
+                        result.append(([i, i + kernel_h], [w - kernel_w, w]))
+                        break
+                else:
+                    if j + kernel_w < w:
+                        result.append(([h - kernel_h, h], [j, j + kernel_w]))
+                    else:
+                        result.append(([h - kernel_h, h], [w - kernel_w, w]))
+                        return result
+
+    patch_container = [[([0, resize_h], [0, resize_w])]]
+
+    n = 2
+    a_h = resize_h
+    a_w = resize_w
+    c_h = a_h // c_denom
+    c_w = a_w // c_denom
+    kernel_h = a_h
+    kernel_w = a_w
+    patch_size_list = [1]
+
+    while kernel_h - 2 * c_h >= 0 and kernel_w - 2 * c_w + 1 >= 0:
+        kernel_h = (a_h - (n - 1) * c_h)
+        kernel_w = (a_w - (n - 1) * c_w)
+        stride_h = floor(kernel_h - (kernel_h - c_h) / c_h)
+        stride_w = floor(kernel_w - (kernel_w - c_w) / c_w)
+        img_patches = return_sliding_windows(img_resize, kernel_h, kernel_w, stride_h, stride_w)
+        patch_container.append(img_patches)
+        print("level: {}, kernel h: {}, kernel w: {}, stride h: {}, stride w: {}".format(n, kernel_h, kernel_w, stride_h, stride_w))
+        patch_size_list.append(len(img_patches))
+        n += 1
+    index_array, vl = index_of_last_apperance(patch_size_list)
+    patch_container_deduplicate = [patch_container[i] for i in index_array]
+    patch_dict = vis_cc_patches(save_dir=image_save_dir, patch_coordinates=patch_container_deduplicate, img_resize=img_resize, img_name=image_name)
+
+    return img_resize, patch_dict, image_save_dir
 
 
 def _load_existing_patches(image_save_dir, image_name):
@@ -113,7 +242,7 @@ if __name__ == "__main__":
     patch_save_root = "/media/zilun/fanxiang4t/GRSM/ImageRAG0214/cache"  # 设置保存 patch 的根目录
 
     # 调用函数
-    original_image, patch_dict = patchify_image(image_path, patch_size, patch_save_root)
+    resized_image, patch_dict, img_save_dir = vit_patchify(image_path, patch_save_root, patch_size)
 
-    print("原始图像：", original_image.size)
+    print("原始图像：", resized_image.size)
     print("Patch 字典：", patch_dict)

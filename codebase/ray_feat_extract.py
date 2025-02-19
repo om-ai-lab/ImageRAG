@@ -220,5 +220,65 @@ def main():
     extract(args)
 
 
+def deduplicate_result_dict(result_dict_path, new_result_dict_path, sentence_bert_path="/media/zilun/wd-161/hf_download/all-MiniLM-L6-v2"):
+
+    from sentence_transformers import SentenceTransformer, SimilarityFunction
+    model = SentenceTransformer(sentence_bert_path)
+    vector_database_content = pkl.load(open(result_dict_path, "rb"))
+    assert len(vector_database_content["img_name_list"]) == len(vector_database_content["label_list"]) == len(vector_database_content["feat"])
+    T = 1.0
+    # # 示例用法：定义一个简单的语义去重函数
+    def cal_semantically_sim(label1, label2):
+        # # 假设完全相同的标签视为语义重复
+        # embeddings1 = model.encode(label1)
+        # embeddings2 = model.encode(label2)
+        # # Compute cosine similarities
+        # similarities = model.similarity(embeddings1, embeddings2)
+        tmp_label1 = label1.lower().replace("-", " ").replace("_", " ")
+        tmp_label2 = label2.lower().replace("-", " ").replace("_", " ")
+        if tmp_label1 == tmp_label2:
+            similarities = 1.0
+        else:
+            similarities = 0.0
+        return similarities
+
+    label_list = vector_database_content["label_list"]
+    unique_labels = []
+    label_map = dict()
+    label_set = list(set(label_list))
+    seen_labels = []  # 已处理的标签列表
+
+    for label in tqdm(label_set):
+        is_duplicate = False
+        label_map[label] = label.lower().replace("-", " ").replace("_", " ")
+        for seen_label in seen_labels:
+            similarities = cal_semantically_sim(label, seen_label)
+            if similarities >= T:
+                print(label, seen_label, similarities)
+                is_duplicate = True
+                break
+        if not is_duplicate:
+            unique_labels.append(label)
+            seen_labels.append(label)
+    print(unique_labels)
+    print(len(unique_labels))
+    print(label_map)
+    print(len(label_map))
+
+    new_label_list = []
+    for label in label_list:
+        label_simplified = label_map[label]
+        new_label_list.append(label_simplified)
+    vector_database_content["label_list"] = new_label_list
+    print(set(new_label_list))
+    pkl.dump(vector_database_content, open(new_result_dict_path, "wb"))
+    return vector_database_content
+
+
+
 if __name__ == "__main__":
-    main()
+    # main()
+    new_vector_database_content = deduplicate_result_dict(
+        "/media/zilun/fanxiang4t/GRSM/ImageRAG0214/data/georsclip_feat_label_all_server.pkl",
+        "/media/zilun/fanxiang4t/GRSM/ImageRAG0214/data/georsclip_feat_label_1M.pkl"
+    )
