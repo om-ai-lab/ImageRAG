@@ -91,7 +91,7 @@ class ImageFeatureExtractionDataset(Dataset):
 def extract_image_feature(task_id, model_path, img_path_list, batch_size, num_gpu, save_dir, clip_encoder_name="GeoRSCLIP"):
     pl.seed_everything(2024)
     os.makedirs(save_dir, exist_ok=True)
-    os.environ['CUDA_VISIBLE_DEVICES'] = '0'
+    # os.environ['CUDA_VISIBLE_DEVICES'] = '0'
     device = 'cuda' if num_gpu > 0 else 'cpu'
     print("device: {}".format(device))
 
@@ -192,8 +192,10 @@ def extract(args, modality="image"):
         pub11_train_pd = pd.read_csv(args.pub11_csv_train_path)
         pub11_val_pd = pd.read_csv(args.pub11_csv_val_path)
         pub11_pd = pd.concat([pub11_train_pd, pub11_val_pd])
-        all_imgs_paths = pub11_pd["file_name"].tolist()
-        all_texts = pub11_pd["text"].tolist()
+        all_img_names = pub11_pd["file_name"].tolist()
+        all_imgs_paths = [os.path.join(args.dataset_img_dir, img_name) for img_name in all_img_names]
+        print(all_imgs_paths[:5])
+        # all_texts = pub11_pd["text"].tolist()
         print("total number of images in directory {}: {}".format(args.dataset_img_dir, len(all_imgs_paths)))
         print("non repeat imgs: {}".format(len(set(all_imgs_paths))))
         resource_assignment = assign_img_per_gpu(args.num_runner, len(all_imgs_paths))
@@ -218,6 +220,7 @@ def extract(args, modality="image"):
 
 
 def main():
+    # ray start --head --port=6379
     parser = argparse.ArgumentParser()
 
     parser.add_argument('--num_runner', type=int, default=1,
@@ -231,26 +234,26 @@ def main():
 
     parser.add_argument('--ray_mode', type=str, default="local_run", help='local mode or auto mode')
 
-    parser.add_argument('--batch_size', type=int, default=500, help='batch size')
+    parser.add_argument('--batch_size', type=int, default=1000, help='batch size')
 
     parser.add_argument('--dataset_img_dir', type=str,
-                        default="/home/zilun/RS5M_processing_v2/pub11_img/img",
+                        default="/data1/zilun/dataset/pub11/img",
                         help='dir of images needed to be extracted')
 
     parser.add_argument('--save_dir', type=str,
-                        default="/media/zilun/mx500/ImageRAG_database/cropped_img/img_feat",
+                        default="/data1/zilun/dataset/pub11/img_feat",
                         help='dir of images needed to be extracted')
 
     parser.add_argument('--model_path', type=str,
-                        default="/media/zilun/wd-161/RS5M/RS5M_codebase/ckpt/RS5M_ViT-L-14-336.pt",
+                        default="/data9/zilun/ImageRAG0214/checkpoint/RS5M_ViT-L-14-336.pt",
                         help='model_path')
 
     parser.add_argument('--pub11_csv_train_path', type=str,
-                        default="/media/zilun/fanxiang4t/GRSM/ImageRAG0214/data/pub11_train_metadata.csv",
+                        default="/data9/zilun/dataset/RS5M/pub11_train_metadata.csv",
                         help='pub11_csv_train_path')
 
     parser.add_argument('--pub11_csv_val_path', type=str,
-                        default="/media/zilun/fanxiang4t/GRSM/ImageRAG0214/data/pub11_val_metadata.csv",
+                        default="/data9/zilun/dataset/RS5M/pub11_validation_metadata.csv",
                         help='pub11_csv_val_path')
 
     args = parser.parse_args()
