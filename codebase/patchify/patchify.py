@@ -124,29 +124,46 @@ def cc_patchify(image_path, patch_save_root, c_denom=10):
     else:
         resize_w = w
 
-    img_resize = Image.new('RGB', (resize_w, resize_h), 0)
+    if resize_w != w or resize_h != h:
+        print(f"image resize to {resize_w}x{resize_h}")
+        img_resize = original_image.resize((resize_w, resize_h))
+    else:
+        img_resize = original_image
 
-    left = (resize_w - w) // 2
-    top = (resize_h - h) // 2
+    # img_resize = Image.new('RGB', (resize_w, resize_h), 0)
+    # left = (resize_w - w) // 2
+    # top = (resize_h - h) // 2
+    # img_resize.paste(original_image, (left, top))
 
-    img_resize.paste(original_image, (left, top))
-
-    def vis_cc_patches(save_dir, patch_coordinates, img_resize, img_name):
+    def vis_cc_patches(patch_coordinates, img_resize, img_name):
         assert isinstance(patch_coordinates, list)
-        # os.makedirs(save_dir, exist_ok=True)
-        coordinate_patchname_dict = dict()
         for level_index, level_content in enumerate(tqdm(patch_coordinates)):
             for patch_index, patch_coordinate in enumerate(level_content):
                 h_range, w_range = patch_coordinate
-                crop_box = (w_range[0], h_range[0], w_range[1], h_range[1])
-                patch_img = img_resize.crop(crop_box)
-                patch_filename = f"{image_name}_{w_range[0]}-{h_range[0]}-{w_range[1]}-{h_range[1]}.png"
+                x1 = w_range[0]
+                y1 = h_range[0]
+                x2 = w_range[1]
+                y2 = h_range[1]
+
+                crop_box = (x1, y1, x2, y2)
+                patch = img_resize.crop(crop_box)
+
+                # 将 patch 的坐标映射回原始图像
+                original_x1 = int(x1 * w / resize_w)
+                original_y1 = int(y1 * h / resize_h)
+                original_x2 = int(x2 * w / resize_w)
+                original_y2 = int(y2 * h / resize_h)
+
+                # 生成 patch 的文件名
+                patch_filename = f"{image_name}_{original_x1}-{original_y1}-{original_x2}-{original_y2}.png"
+                patch_path = os.path.join(image_save_dir, patch_filename)
+                patch.save(patch_path)
+
+                # 将 patch 的相对路径保存到 patch_dict
                 relative_path = os.path.join(image_name, patch_filename)
-                patch_dict[(w_range[0], h_range[0], w_range[1], h_range[1])] = relative_path
-                patch_img.save(os.path.join(save_dir, patch_filename))
-                patch_bbox_coordinate = crop_box
-                coordinate_patchname_dict[patch_bbox_coordinate] = patch_filename
-        return coordinate_patchname_dict
+                patch_dict[(original_x1, original_y1, original_x2, original_y2)] = relative_path
+
+        return patch_dict
 
     def index_of_last_apperance(patch_size_list):
         rd = dict()
@@ -203,7 +220,7 @@ def cc_patchify(image_path, patch_save_root, c_denom=10):
         n += 1
     index_array, vl = index_of_last_apperance(patch_size_list)
     patch_container_deduplicate = [patch_container[i] for i in index_array]
-    patch_dict = vis_cc_patches(save_dir=image_save_dir, patch_coordinates=patch_container_deduplicate, img_resize=img_resize, img_name=image_name)
+    patch_dict = vis_cc_patches(patch_coordinates=patch_container_deduplicate, img_resize=img_resize, img_name=image_name)
 
     return img_resize, patch_dict, image_save_dir
 
@@ -242,7 +259,7 @@ if __name__ == "__main__":
     patch_save_root = "/media/zilun/fanxiang4t/GRSM/ImageRAG0214/cache"  # 设置保存 patch 的根目录
 
     # 调用函数
-    resized_image, patch_dict, img_save_dir = vit_patchify(image_path, patch_save_root, patch_size)
+    resized_image, patch_dict, img_save_dir = cc_patchify(image_path, patch_save_root, patch_size)
 
     print("原始图像：", resized_image.size)
     print("Patch 字典：", patch_dict)

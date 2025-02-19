@@ -191,7 +191,7 @@ def main():
     parser = argparse.ArgumentParser()
 
     parser.add_argument('--num_runner', type=int, default=1,
-                        help='number of gpu per trail')
+                        help='number of runner')
     # #gpu per runner
     parser.add_argument('--num_gpu', type=int, default=1,
                         help='number of gpu per trail')
@@ -218,6 +218,7 @@ def main():
     args = parser.parse_args()
 
     extract(args)
+
 
 
 def deduplicate_result_dict(result_dict_path, new_result_dict_path, sentence_bert_path="/media/zilun/wd-161/hf_download/all-MiniLM-L6-v2"):
