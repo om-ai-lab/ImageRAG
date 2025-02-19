@@ -14,6 +14,7 @@ import pickle as pkl
 import pandas as pd
 import open_clip
 import pytorch_lightning as pl
+import pickle as pkl
 
 
 Image.MAX_IMAGE_PIXELS = None
@@ -317,10 +318,72 @@ def deduplicate_result_dict(result_dict_path, new_result_dict_path, sentence_ber
     return vector_database_content
 
 
+def merge_ray_feat(pub11_csv_train_path, pub11_csv_val_path, feat_dir, save_path):
+    pub11_train_pd = pd.read_csv(pub11_csv_train_path)
+    pub11_val_pd = pd.read_csv(pub11_csv_val_path)
+    pub11_pd = pd.concat([pub11_train_pd, pub11_val_pd])
+    pd_img_names = pub11_pd["file_name"].tolist()
+    pd_texts = pub11_pd["text"].tolist()
+    img_text_dict = dict(zip(pd_img_names, pd_texts))
+    
+    def list_imgname2text(img_names):
+        text_list = []
+        for img_name in img_names:
+            text = img_text_dict[img_name]
+            text_list.append(text)
+        return text_list
+
+    all_image_names = []
+    all_features = []
+    all_text = []
+
+    # 遍历目录中的所有 pkl 文件
+    pkl_files = glob.glob(os.path.join(feat_dir, "*.pkl"))
+
+    for file_path in tqdm(pkl_files):
+        # 加载 pkl 文件
+        with open(file_path, 'rb') as f:
+            data = pkl.load(f)  # 假设数据是一个字典，包含 image_name 和 feat
+            
+        # 提取 image_name 和 feat 数据
+        image_names = data['img_name_list']
+        feats = data['feat_list']
+        texts = list_imgname2text(image_names)
+
+        all_image_names.extend(image_names)
+        all_features.extend(feats)
+        all_text.extend(texts)
+
+    # assert len(vector_database_content["img_name_list"]) == len(vector_database_content["label_list"]) == len(vector_database_content["feat"])
+
+    result = {
+        "img_name_list": all_image_names,
+        "label_list": all_text,
+        "feat": all_features
+    }
+    
+    for i in range(5):
+        print(all_image_names[i], all_text[i], all_features[i].shape)
+        
+        
+    pkl.dump(result, open(save_path, "wb"))
+    
+    return result
+    
+
+
 
 if __name__ == "__main__":
-    main()
+    # main()
+    
     # new_vector_database_content = deduplicate_result_dict(
     #     "/media/zilun/fanxiang4t/GRSM/ImageRAG0214/data/georsclip_feat_label_all_server.pkl",
     #     "/media/zilun/fanxiang4t/GRSM/ImageRAG0214/data/georsclip_feat_label_1M.pkl"
     # )
+    
+    merge_ray_feat(
+        "/data9/zilun/dataset/RS5M/pub11_train_metadata.csv", 
+        "/data9/zilun/dataset/RS5M/pub11_validation_metadata.csv", 
+        "/data1/zilun/dataset/pub11/img_feat", 
+        "/data9/zilun/ImageRAG0214/data/georsclip_pub11feat_label_3M.pkl"
+    )
