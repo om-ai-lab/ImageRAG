@@ -187,6 +187,36 @@ def extract(args, modality="image"):
         print(tic - toc)
 
 
+    if modality == "pub11":
+        # all_imgs_paths = get_all_img_path(os.path.join(args.dataset_img_dir))
+        pub11_train_pd = pd.read_csv(args.pub11_csv_train_path)
+        pub11_val_pd = pd.read_csv(args.pub11_csv_val_path)
+        pub11_pd = pd.concat([pub11_train_pd, pub11_val_pd])
+        all_imgs_paths = pub11_pd["file_name"].tolist()
+        all_texts = pub11_pd["text"].tolist()
+        print("total number of images in directory {}: {}".format(args.dataset_img_dir, len(all_imgs_paths)))
+        print("non repeat imgs: {}".format(len(set(all_imgs_paths))))
+        resource_assignment = assign_img_per_gpu(args.num_runner, len(all_imgs_paths))
+        print("resource assignment for {} runners: {}".format(args.num_runner, resource_assignment))
+        img_path_assignments = get_img_path_assignment(all_imgs_paths, resource_assignment)
+
+        os.makedirs(args.save_dir, exist_ok=True)
+        print("image feature save dir: {}".format(args.save_dir))
+
+        result_status = []
+        for task_id, img_path_list in enumerate(img_path_assignments):
+            status = extract_image_feature.options(num_cpus=4, num_gpus=args.num_gpu).remote(
+                # model_path, img_path_list, batch_size, num_gpu, clip_encoder_name="GeoRSCLIP"
+                task_id, args.model_path, img_path_list, args.batch_size, args.num_gpu, args.save_dir
+            )
+            result_status.append(status)
+            print("runner: {}".format(task_id))
+        ray.get(result_status)
+
+        tic = datetime.now()
+        print(tic - toc)
+
+
 def main():
     parser = argparse.ArgumentParser()
 
@@ -204,7 +234,7 @@ def main():
     parser.add_argument('--batch_size', type=int, default=500, help='batch size')
 
     parser.add_argument('--dataset_img_dir', type=str,
-                        default="/media/zilun/mx500/ImageRAG_database/cropped_img",
+                        default="/home/zilun/RS5M_processing_v2/pub11_img/img",
                         help='dir of images needed to be extracted')
 
     parser.add_argument('--save_dir', type=str,
@@ -215,9 +245,17 @@ def main():
                         default="/media/zilun/wd-161/RS5M/RS5M_codebase/ckpt/RS5M_ViT-L-14-336.pt",
                         help='model_path')
 
+    parser.add_argument('--pub11_csv_train_path', type=str,
+                        default="/media/zilun/fanxiang4t/GRSM/ImageRAG0214/data/pub11_train_metadata.csv",
+                        help='pub11_csv_train_path')
+
+    parser.add_argument('--pub11_csv_val_path', type=str,
+                        default="/media/zilun/fanxiang4t/GRSM/ImageRAG0214/data/pub11_val_metadata.csv",
+                        help='pub11_csv_val_path')
+
     args = parser.parse_args()
 
-    extract(args)
+    extract(args, modality="pub11")
 
 
 
@@ -278,8 +316,8 @@ def deduplicate_result_dict(result_dict_path, new_result_dict_path, sentence_ber
 
 
 if __name__ == "__main__":
-    # main()
-    new_vector_database_content = deduplicate_result_dict(
-        "/media/zilun/fanxiang4t/GRSM/ImageRAG0214/data/georsclip_feat_label_all_server.pkl",
-        "/media/zilun/fanxiang4t/GRSM/ImageRAG0214/data/georsclip_feat_label_1M.pkl"
-    )
+    main()
+    # new_vector_database_content = deduplicate_result_dict(
+    #     "/media/zilun/fanxiang4t/GRSM/ImageRAG0214/data/georsclip_feat_label_all_server.pkl",
+    #     "/media/zilun/fanxiang4t/GRSM/ImageRAG0214/data/georsclip_feat_label_1M.pkl"
+    # )
