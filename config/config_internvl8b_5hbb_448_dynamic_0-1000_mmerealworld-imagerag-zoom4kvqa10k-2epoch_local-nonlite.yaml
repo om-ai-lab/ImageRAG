@@ -93,14 +93,15 @@ llmvqa_model:
           1
 
 vector_database:
-    meta_pkl_path:
-        "/media/zilun/fanxiang4t/GRSM/ImageRAG0214/data/georsclip_feat_label_1M.pkl"
-#    img_dir:
-#      "/media/zilun/mx500/ImageRAG_database/cropped_img"
-    text_vector_database_dir:
-      "cache/vector_database/text_vector_database"
-    image_vector_database_dir:
-      "cache/vector_database/image_vector_database"
+    # legacy rs dataset
+    lrsd_meta_pkl_path:
+        "/media/zilun/fanxiang4t/GRSM/ImageRAG0214/data/georsclip_lrsdfeat_label_1M.pkl"
+    pub11_meta_pkl_path:
+        "/media/zilun/fanxiang4t/GRSM/ImageRAG0214/data/georsclip_pub11feat_label_3M.pkl"
+    lrsd_vector_database_dir:
+      "cache/vector_database/lrsd_vector_database"
+    pub11_vector_database_dir:
+      "cache/vector_database/pub11_vector_database"
     mm_vector_database_dir:
       "cache/vector_database/mm_vector_database"
 

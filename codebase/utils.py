@@ -18,6 +18,8 @@ import regex as re
 import torchvision.transforms as T
 from torchvision.transforms.functional import InterpolationMode
 from transformers import AutoModel, AutoTokenizer
+from langchain.vectorstores import Chroma, FAISS
+from langchain_huggingface import HuggingFaceEmbeddings
 
 
 IMAGENET_MEAN = (0.485, 0.456, 0.406)
@@ -637,41 +639,39 @@ def select_visual_cue(vlm_image_feats, bbox_coordinate_list, visual_cue_candidat
     return visual_cues
 
 
-def setup_text_vsd(config):
-    from langchain.vectorstores import Chroma, FAISS
-    from langchain_huggingface import HuggingFaceEmbeddings
+def setup_lrsd_vsd(config):
 
     # Create Chroma vector store
     slow_text_emb_model_path = config["text_embed_model"]["model_path"]
     text_embeddings = HuggingFaceEmbeddings(model_name=slow_text_emb_model_path)
 
     vsd_wd_flag = False
-    vs_work_dir = os.path.join(config["work_dir"], config["vector_database"]["text_vector_database_dir"])
+    vs_work_dir = os.path.join(config["work_dir"], config["vector_database"]["lrsd_vector_database_dir"])
     if os.path.exists(vs_work_dir):
         vsd_wd_flag = True
 
-    meta_pkl_path = config["vector_database"]["meta_pkl_path"]
+    meta_pkl_path = config["vector_database"]["lrsd_meta_pkl_path"]
     # 'img_name_list' 'label_list' 'feat'
     vector_database_content = pkl.load(open(meta_pkl_path, "rb"))
     assert len(vector_database_content["img_name_list"]) == len(vector_database_content["label_list"]) == len(
         vector_database_content["feat"])
-    imgname2label_dict = dict()
+    # imgname2label_dict = dict()
     label2imgname_dict = dict()
     imgname2feat_dict = dict()
 
     for i in tqdm(range(len(vector_database_content["img_name_list"]))):
         img_name = vector_database_content["img_name_list"][i]
-        label = vector_database_content["label_list"][i].lower()
+        label = vector_database_content["label_list"][i]
         feat = vector_database_content["feat"][i]
-        imgname2label_dict[img_name] = label
+        # imgname2label_dict[img_name] = label
         if label not in label2imgname_dict:
             label2imgname_dict[label] = [img_name]
         else:
             label2imgname_dict[label].append(img_name)
         imgname2feat_dict[img_name] = feat
 
-    text_vectorstore = Chroma(
-        collection_name="vector_store4keyphrase_label_matching",
+    vectorstore = Chroma(
+        collection_name="lrsd_vector_store4keyphrase_label_matching",
         embedding_function=text_embeddings,
         persist_directory=vs_work_dir,
         # Where to save data locally, remove if not necessary
@@ -681,9 +681,59 @@ def setup_text_vsd(config):
     if not vsd_wd_flag:
         labels_in_database = list(label2imgname_dict.keys())
         meta = [{'type': 'text'}] * len(labels_in_database)
-        text_vectorstore.add_texts(texts=labels_in_database, metadatas=meta)
+        vectorstore.add_texts(texts=labels_in_database, metadatas=meta)
 
-    return text_vectorstore, label2imgname_dict, imgname2label_dict, imgname2feat_dict
+    return vectorstore, label2imgname_dict, imgname2feat_dict
+
+
+def setup_pub11_vsd(config):
+    # Create Chroma vector store
+    slow_text_emb_model_path = config["text_embed_model"]["model_path"]
+    text_embeddings = HuggingFaceEmbeddings(model_name=slow_text_emb_model_path)
+
+    vsd_wd_flag = False
+    vs_work_dir = os.path.join(config["work_dir"], config["vector_database"]["pub11_vector_database_dir"])
+    if os.path.exists(vs_work_dir):
+        vsd_wd_flag = True
+
+    meta_pkl_path = config["vector_database"]["pub11_meta_pkl_path"]
+    # 'img_name_list' 'label_list' 'feat'
+    vector_database_content = pkl.load(open(meta_pkl_path, "rb"))
+    assert len(vector_database_content["img_name_list"]) == len(vector_database_content["label_list"]) == len(
+        vector_database_content["feat"])
+    # imgname2label_dict = dict()
+    label2imgname_dict = dict()
+    imgname2feat_dict = dict()
+
+    for i in tqdm(range(len(vector_database_content["img_name_list"]))):
+        img_name = vector_database_content["img_name_list"][i]
+        label = vector_database_content["label_list"][i]
+        feat = vector_database_content["feat"][i]
+        # imgname2label_dict[img_name] = label
+        if label not in label2imgname_dict:
+            label2imgname_dict[label] = [img_name]
+        else:
+            label2imgname_dict[label].append(img_name)
+        imgname2feat_dict[img_name] = feat
+
+    vectorstore = Chroma(
+        collection_name="pub11_vector_store4keyphrase_label_matching",
+        embedding_function=text_embeddings,
+        persist_directory=vs_work_dir,
+        # Where to save data locally, remove if not necessary
+        collection_metadata = {"hnsw:space": "l2"},
+    )
+
+    if not vsd_wd_flag:
+        labels_in_database = list(label2imgname_dict.keys())
+        meta = [{'type': 'text'}] * len(labels_in_database)
+        batch_size = 10000
+        for i in tqdm(range(0, len(labels_in_database), batch_size)):
+            batch_texts = labels_in_database[i:i + batch_size]
+            batch_meta = meta[i:i + batch_size]
+            vectorstore.add_texts(texts=batch_texts, metadatas=batch_meta)
+
+    return vectorstore, label2imgname_dict, imgname2feat_dict
 
 
 class VanillaDataset(Dataset):

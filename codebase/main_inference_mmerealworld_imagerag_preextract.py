@@ -33,7 +33,7 @@ from codebase.utils import (setup_vlm_model, set_up_paraphrase_model, setup_vqal
                             paraphrase_model_inference, text_expand_model_inference, setup_logger, meta_df2clsimg_dict,
                             img_reduce, select_visual_cue, ranking_patch_visualcue2patch, load_yaml, get_chunk,
                             convert_obb_to_region_str, obb2minhbb, sole_visualcue2mergedvisualcue, visualcue2imagepatch,
-                            reduce_visual_cue_per_cls, setup_text_vsd, bbox_location)
+                            reduce_visual_cue_per_cls, setup_lrsd_vsd, setup_pub11_vsd, bbox_location)
 from codebase.sglang_util import get_paraphase_response, get_keyword_response, get_text_expansion_response
 from codebase.utils import load_yaml
 from codebase.patchify import cc_patchify, vit_patchify
@@ -127,10 +127,11 @@ class InternVLMMERSDataset(Dataset):
         return len(self.questions)
 
 
-def image_rag(config, contrastive_vlm_pack, line, client, logger, text_vectorstore, vsd_label2imgname_dict,
-              vsd_imgname2label_dict, vsd_imgname2feat_dict, text_paraphrase, text_expand):
-    # responses = image_rag(config, generative_vlm, generative_vlm_tokenizer, generative_vlm_generation_config, image_tensors, prompts, num_patches_list, question_text_only_list, line, client, logger, paraphrase=False)
-
+def image_rag(config, contrastive_vlm_pack, line, client, logger,
+              lrsd_vectorstore, lrsd_vsd_label2imgname_dict, lrsd_vsd_imgname2feat_dict,
+              pub11_vectorstore, pub11_label2imgname_dict, pub11_imgname2feat_dict,
+              text_paraphrase, text_expand
+              ):
     patch_saving_dir = os.path.join(config['work_dir'], config['patch_saving_dir'])
     fast_path_T = int(config['fast_path_T'])
     paraphrase_model_config = config['paraphrase_model']
@@ -267,33 +268,63 @@ def image_rag(config, contrastive_vlm_pack, line, client, logger, text_vectorsto
         # )
         selected_label_names = []
         for expanded_query_text in expanded_query_text_dict:
-            results = text_vectorstore.similarity_search_with_score(
+            results = lrsd_vectorstore.similarity_search_with_score(
                 expanded_query_text, k=3
             )
             for res, score in results:
                 # * [SIM=1.726390] The stock market is down 500 points today due to fears of a recession. [{'source': 'news'}] default l2
                 logger.info(f"Query:={expanded_query_text_dict[expanded_query_text]} * [SIM={score:3f}] {res.page_content}")
-                if score <= 1:
+                if score <= 0.5:
                     selected_label_names.append(res.page_content)
 
         if len(selected_label_names) > 0:
             selected_label_names = list(set(selected_label_names))
-            logger.info("Selected labels from VSD: {}".format(selected_label_names))
+            logger.info("Selected labels from Text VSD: {}".format(selected_label_names))
             # label -> feats dict
             visual_cue_candidates_dict = dict()
 
             for label in selected_label_names:
                 img_feat_selected_per_cls = []
-                img_names = vsd_label2imgname_dict[label]
+                img_names = lrsd_vsd_label2imgname_dict[label]
                 for img_name in img_names:
-                    feat = vsd_imgname2feat_dict[img_name].unsqueeze(0)
+                    feat = lrsd_vsd_imgname2feat_dict[img_name].unsqueeze(0)
                     img_feat_selected_per_cls.append(feat)
                 img_feat_selected_per_cls = torch.cat(img_feat_selected_per_cls)
                 visual_cue_candidates_dict[label] = img_feat_selected_per_cls
             reduced_visual_cue_per_cls = reduce_visual_cue_per_cls(visual_cue_candidates_dict, reduce_fn="mean", need_feat_normalize=True)
             visual_cue, visual_cue_similarity = select_visual_cue(vlm_image_feats, bbox_coordinate_list, reduced_visual_cue_per_cls, need_feat_normalize=True)
         else:
-            logger.info("No label text pass the threshold. Cannot find label that match the keywords from query.")
+            logger.info("No label text pass the threshold. Cannot find label that match the keywords from query. Try Pub11 VSD.")
+            # pub11_vectorstore, pub11_label2imgname_dict, pub11_imgname2feat_dict,
+            selected_captions = []
+            for expanded_query_text in expanded_query_text_dict:
+                # expanded_query_text_sentence = "A photo of {}".format(expanded_query_text)
+                expanded_query_text_sentence = expanded_query_text
+                results = pub11_vectorstore.similarity_search_with_score(
+                    expanded_query_text_sentence, k=3
+                )
+                for res, score in results:
+                    # * [SIM=1.726390] The stock market is down 500 points today due to fears of a recession. [{'source': 'news'}] default l2
+                    logger.info(
+                        f"Query:={expanded_query_text_dict[expanded_query_text]} * [SIM={score:3f}] {res.page_content}")
+                    if score <= 0.7:
+                        selected_captions.append(res.page_content)
+
+            if len(selected_captions) > 0:
+                visual_cue_candidates_dict = dict()
+                for caption in selected_captions:
+                    img_feat_selected_per_caption = []
+                    img_names = pub11_label2imgname_dict[caption]
+                    for img_name in img_names:
+                        feat = torch.from_numpy(pub11_imgname2feat_dict[img_name])
+                        img_feat_selected_per_caption.append(feat)
+                    img_feat_selected_per_caption = torch.cat(img_feat_selected_per_caption)
+                    visual_cue_candidates_dict[caption] = img_feat_selected_per_caption
+
+                reduced_visual_cue_per_cls = reduce_visual_cue_per_cls(visual_cue_candidates_dict, reduce_fn="mean", need_feat_normalize=True)
+                visual_cue, visual_cue_similarity = select_visual_cue(vlm_image_feats, bbox_coordinate_list, reduced_visual_cue_per_cls, need_feat_normalize=True)
+            else:
+                logger.info("No caption text pass the threshold. Cannot find caption that match the keywords from query. Return to the fast path.")
 
     return image_path, visual_cue, visual_cue_similarity, question_with_test_template, query_keywords
 
@@ -606,13 +637,16 @@ def inference_internvl(config, questions, ans_file_path, generative_vlm_pack, cl
         device = "cuda" if torch.cuda.is_available() else "cpu"
         # fast_path_vlm, img_preprocess, text_tokenizer
         contrastive_vlm_pack = setup_vlm_model(fast_vlm_model_path, fast_vlm_model_name, device)
-        text_vectorstore, vsd_label2imgname_dict, vsd_imgname2label_dict, vsd_imgname2feat_dict = setup_text_vsd(config)
+        lrsd_vectorstore, lrsd_vsd_label2imgname_dict, lrsd_vsd_imgname2feat_dict = setup_lrsd_vsd(config)
+        pub11_vectorstore, pub11_vsd_label2imgname_dict, pub11_vsd_imgname2feat_dict = setup_pub11_vsd(config)
+
         for line in tqdm(questions):
             gc.collect()
             torch.cuda.empty_cache()
             image_path, visual_cues, visual_cues_similarity, question_with_test_template, query_keywords = image_rag(
                 config, contrastive_vlm_pack, line, client, logger,
-                text_vectorstore, vsd_label2imgname_dict, vsd_imgname2label_dict, vsd_imgname2feat_dict,
+                lrsd_vectorstore, lrsd_vsd_label2imgname_dict, lrsd_vsd_imgname2feat_dict,
+                pub11_vectorstore, pub11_vsd_label2imgname_dict, pub11_vsd_imgname2feat_dict,
                 text_paraphrase=False, text_expand=False
             )
             images, tile_num_list = [], []

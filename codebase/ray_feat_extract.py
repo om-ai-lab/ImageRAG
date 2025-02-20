@@ -374,16 +374,16 @@ def merge_ray_feat(pub11_csv_train_path, pub11_csv_val_path, feat_dir, save_path
 
 
 if __name__ == "__main__":
-    # main()
+    main()
     
     # new_vector_database_content = deduplicate_result_dict(
     #     "/media/zilun/fanxiang4t/GRSM/ImageRAG0214/data/georsclip_feat_label_all_server.pkl",
     #     "/media/zilun/fanxiang4t/GRSM/ImageRAG0214/data/georsclip_feat_label_1M.pkl"
     # )
     
-    merge_ray_feat(
-        "/data9/zilun/dataset/RS5M/pub11_train_metadata.csv", 
-        "/data9/zilun/dataset/RS5M/pub11_validation_metadata.csv", 
-        "/data1/zilun/dataset/pub11/img_feat", 
-        "/data9/zilun/ImageRAG0214/data/georsclip_pub11feat_label_3M.pkl"
-    )
+    # merge_ray_feat(
+    #     "/data9/zilun/dataset/RS5M/pub11_train_metadata.csv",
+    #     "/data9/zilun/dataset/RS5M/pub11_validation_metadata.csv",
+    #     "/data1/zilun/dataset/pub11/img_feat",
+    #     "/data9/zilun/ImageRAG0214/data/georsclip_pub11feat_label_3M.pkl"
+    # )
