@@ -19,3 +19,5 @@ bitsandbytes
 accelerate
 flash-attn==2.3.6
 httpx[socks]
+langchain-community
+langchain_huggingface
