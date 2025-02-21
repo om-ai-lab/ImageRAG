@@ -53,11 +53,9 @@ def collate_fn(batch):
 
 
 # DataLoader
-def create_data_loader(questions, image_folder, tokenizer, dynamic_preprocess, transform, model_config, batch_size=1,
-                       num_workers=0, prompt=''):
+def create_data_loader(questions, image_folder, tokenizer, dynamic_preprocess, transform, model_config, use_dynamic, inference_mode, batch_size=1, num_workers=0, prompt=''):
     # assert batch_size == 1, "batch_size must be 1"
-    dataset = InternVLMMERSDataset(questions, image_folder, tokenizer, dynamic_preprocess, transform, model_config,
-                                   prompt)
+    dataset = InternVLMMERSDataset(questions, image_folder, tokenizer, dynamic_preprocess, transform, model_config, prompt, inference_mode, use_dynamic)
     data_loader = DataLoader(dataset, batch_size=batch_size, num_workers=num_workers, shuffle=False,
                              collate_fn=collate_fn)
     return data_loader
@@ -76,8 +74,8 @@ def get_chunk(lst, n, k):
 
 # Custom dataset class
 class InternVLMMERSDataset(Dataset):
-    def __init__(self, questions, image_folder, tokenizer, dynamic_preprocess, transform, model_config, test_prompt,
-                 mode="baseline", use_dynamic=True):
+    # InternVLMMERSDataset(questions, image_folder, tokenizer, dynamic_preprocess, transform, model_config, prompt, use_dynamic)
+    def __init__(self, questions, image_folder, tokenizer, dynamic_preprocess, transform, model_config, test_prompt, mode="baseline", use_dynamic=True):
         self.questions = questions
         self.image_folder = image_folder
         self.tokenizer = tokenizer
@@ -339,7 +337,7 @@ def inference_internvl(config, questions, ans_file_path, generative_vlm_pack, cl
         data_loader = create_data_loader(
             questions, config["input_image_dir"],
             generative_vlm_tokenizer, generative_vlm_dynamic_preprocess,
-            generative_vlm_transform, generative_vlm.config,
+            generative_vlm_transform, generative_vlm.config, config["use_dynamic"], config["mode"],
             config["batch_size"], prompt=config["test_prompt"]
         )
         for (image_tensors, prompts, num_patches_list, question_text_only_list, line) in tqdm(data_loader):
@@ -703,14 +701,14 @@ def inference_internvl(config, questions, ans_file_path, generative_vlm_pack, cl
             print(tile_num_list)
             with torch.inference_mode():
                 # TODO: visual cues contain full image, duplicate
-                # response = generative_vlm.chat(
-                #     generative_vlm_tokenizer,
-                #     pixel_values,
-                #     final_instruction,
-                #     generative_vlm_generation_config,
-                #     num_patches_list=tile_num_list
-                # )
-                response = "F"
+                response = generative_vlm.chat(
+                    generative_vlm_tokenizer,
+                    pixel_values,
+                    final_instruction,
+                    generative_vlm_generation_config,
+                    num_patches_list=tile_num_list
+                )
+                # response = "F"
 
                 logger.info(f'Prompt: {question_with_test_template}\n\n GT: {line["Ground truth"]} \n Output: {response}')
                 line['output'] = response
