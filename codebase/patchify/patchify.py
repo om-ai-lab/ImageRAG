@@ -19,7 +19,7 @@ def vit_patchify(image_path, patch_save_root, patch_size=448):
         original_image (PIL.Image): 原始图像。
         patch_dict (dict): key 是 patch 的坐标 (row, col)，value 是 patch 的相对路径。
     """
-    patch_save_root = os.path.join(patch_save_root, "vit")
+    # patch_save_root = os.path.join(patch_save_root, "vit")
     os.makedirs(patch_save_root, exist_ok=True)
 
     # 提取图像文件名（不包含扩展名）
@@ -33,12 +33,6 @@ def vit_patchify(image_path, patch_save_root, patch_size=448):
     image_save_dir = os.path.join(patch_save_root, image_name)
     os.makedirs(image_save_dir, exist_ok=True)
 
-    # 检查目录是否为空
-    if os.listdir(image_save_dir):
-        print(f"dir {image_save_dir} non-empty，load existed patch file")
-        return original_image, _load_existing_patches(image_save_dir, image_name), image_save_dir
-
-
     # 如果图像尺寸不是 patch_size 的整数倍，需要对图像进行 resize
     new_width = int(np.ceil(original_width / patch_size)) * patch_size
     new_height = int(np.ceil(original_height / patch_size)) * patch_size
@@ -48,6 +42,11 @@ def vit_patchify(image_path, patch_save_root, patch_size=448):
         resized_image = original_image.resize((new_width, new_height))
     else:
         resized_image = original_image
+
+    # 检查目录是否为空
+    if os.listdir(image_save_dir):
+        print(f"dir {image_save_dir} non-empty，load existed patch file")
+        return resized_image, original_image, _load_existing_patches(image_save_dir, image_name), image_save_dir
 
     # 初始化 patch_dict
     patch_dict = {}
@@ -79,10 +78,10 @@ def vit_patchify(image_path, patch_save_root, patch_size=448):
             relative_path = os.path.join(image_name, patch_filename)
             patch_dict[(original_x1, original_y1, original_x2, original_y2)] = relative_path
 
-    return resized_image, patch_dict, image_save_dir
+    return resized_image, original_image, patch_dict, image_save_dir
 
 
-def cc_patchify(image_path, patch_save_root, c_denom=10):
+def cc_patchify(image_path, patch_save_root, c_denom=6):
     """
     Get image patches with patch-cc scheme
     (bs, 3, h, w) -> (bs, p, 3, h_p, w_p)
@@ -90,7 +89,7 @@ def cc_patchify(image_path, patch_save_root, c_denom=10):
     :return: list of bbox (tl_x, tl_r, w, h), each represents a patch (cover)
     # img, img_name, c_denom=10, dump_imgs=False, patch_saving_dir=None
     """
-    patch_save_root = os.path.join(patch_save_root, "cc")
+    # patch_save_root = os.path.join(patch_save_root, "cc")
     os.makedirs(patch_save_root, exist_ok=True)
 
     # 提取图像文件名（不包含扩展名）
@@ -105,12 +104,6 @@ def cc_patchify(image_path, patch_save_root, c_denom=10):
     print("Make sure cc is in the patch saving dir")
     assert "cc" in image_save_dir
     os.makedirs(image_save_dir, exist_ok=True)
-
-    # 检查目录是否为空
-    if os.listdir(image_save_dir):
-        print(f"dir {image_save_dir} non-empty，load existed patch file")
-        return original_image, _load_existing_patches(image_save_dir, image_name), image_save_dir
-
 
     # 如果图像尺寸不是 patch_size 的整数倍，需要对图像进行 resize
     w, h = original_image.size
@@ -129,6 +122,11 @@ def cc_patchify(image_path, patch_save_root, c_denom=10):
         img_resize = original_image.resize((resize_w, resize_h))
     else:
         img_resize = original_image
+        
+    # 检查目录是否为空
+    if os.listdir(image_save_dir):
+        print(f"dir {image_save_dir} non-empty，load existed patch file")
+        return img_resize, original_image, _load_existing_patches(image_save_dir, image_name), image_save_dir
 
     # img_resize = Image.new('RGB', (resize_w, resize_h), 0)
     # left = (resize_w - w) // 2
@@ -137,6 +135,7 @@ def cc_patchify(image_path, patch_save_root, c_denom=10):
 
     def vis_cc_patches(patch_coordinates, img_resize, img_name):
         assert isinstance(patch_coordinates, list)
+        patch_dict = {}
         for level_index, level_content in enumerate(tqdm(patch_coordinates)):
             for patch_index, patch_coordinate in enumerate(level_content):
                 h_range, w_range = patch_coordinate
@@ -222,7 +221,7 @@ def cc_patchify(image_path, patch_save_root, c_denom=10):
     patch_container_deduplicate = [patch_container[i] for i in index_array]
     patch_dict = vis_cc_patches(patch_coordinates=patch_container_deduplicate, img_resize=img_resize, img_name=image_name)
 
-    return img_resize, patch_dict, image_save_dir
+    return img_resize, original_image, patch_dict, image_save_dir
 
 
 def _load_existing_patches(image_save_dir, image_name):
@@ -254,12 +253,12 @@ def _load_existing_patches(image_save_dir, image_name):
 # 示例用法
 if __name__ == "__main__":
     # 输入图像路径
-    image_path = "/media/zilun/wd-161/datasets/MME-RealWorld-Lite/data/imgs/dota_v2_dota_v2_dota_v2_P6397.png"  # 替换为你的图像路径
+    image_path = "/data9/shz/dataset/MME-RealWorld/remote_sensing/remote_sensing/dota_v2_dota_v2_dota_v2_P6397.png"  # 替换为你的图像路径
     patch_size = 448  # 设置 patch 的大小
-    patch_save_root = "/media/zilun/fanxiang4t/GRSM/ImageRAG0214/cache"  # 设置保存 patch 的根目录
+    patch_save_root = "/data9/zilun/ImageRAG0214/cache/patch/mmerealworldlite/cc"  # 设置保存 patch 的根目录
 
     # 调用函数
-    resized_image, patch_dict, img_save_dir = cc_patchify(image_path, patch_save_root, patch_size)
+    resized_image, patch_dict, img_save_dir = cc_patchify(image_path, patch_save_root, 10)
 
     print("原始图像：", resized_image.size)
     print("Patch 字典：", patch_dict)

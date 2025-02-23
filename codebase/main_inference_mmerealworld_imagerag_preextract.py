@@ -205,9 +205,11 @@ def image_rag(config, contrastive_vlm_pack, line, client, logger,
     #     # dump_imgs=False, Not working
     #     patch_saving_dir=patch_saving_dir
     # )
-
-    img_resize, coordinate_patchname_dict, image_save_dir = vit_patchify(image_path, patch_saving_dir, patch_size=config['model_input_image_size'])
-    # img_resize, coordinate_patchname_dict, image_save_dir = cc_patchify(image_path, patch_saving_dir, c_denom=10)
+    patch_saving_dir = os.path.join(patch_saving_dir, config["patch_method"])
+    if  config["patch_method"] == "vit":
+        img_resize, original_image, coordinate_patchname_dict, image_save_dir = vit_patchify(image_path, patch_saving_dir, patch_size=config['model_input_image_size'])
+    elif config["patch_method"] == "cc":
+        img_resize, original_image, coordinate_patchname_dict, image_save_dir = cc_patchify(image_path, patch_saving_dir, c_denom=10)
 
     logger.info(
         "resize image to width and height: {}, {}, for patchify.".format(img_resize.size[0], img_resize.size[1]))
@@ -230,6 +232,7 @@ def image_rag(config, contrastive_vlm_pack, line, client, logger,
 
     t2p_similarity = calculate_similarity_matrix(vlm_image_feats, vlm_text_feats, fast_path_vlm.logit_scale.exp())
     # visual_cue (topn, 4) -> [[x1, y1, x2, y2], ...]
+    # pdb.set_trace()
     visual_cue, visual_cue_similarity = ranking_patch_t2p(bbox_coordinate_list, t2p_similarity, top_k=2)
     logger.info("Ranked Patch Shape: {}".format(visual_cue.shape))
     logger.info("visual_cue similarity: {}".format(visual_cue_similarity))
@@ -322,8 +325,25 @@ def image_rag(config, contrastive_vlm_pack, line, client, logger,
                 reduced_visual_cue_per_cls = reduce_visual_cue_per_cls(visual_cue_candidates_dict, reduce_fn="mean", need_feat_normalize=True)
                 visual_cue, visual_cue_similarity = select_visual_cue(vlm_image_feats, bbox_coordinate_list, reduced_visual_cue_per_cls, need_feat_normalize=True)
             else:
-                logger.info("No caption text pass the threshold. Cannot find caption that match the keywords from query. Return to the fast path.")
-
+                # w, h = original_image.size
+                # visual_cue = [[0, 0, w, h]]
+                # visual_cue_similarity = [1.0]
+                # visual_cue = []
+                # visual_cue_similarity = []
+                logger.info("No caption text pass the threshold. Cannot find caption that match the keywords from query.")
+                return image_path, visual_cue, visual_cue_similarity, question_with_test_template, query_keywords
+            
+    print(visual_cue, visual_cue_similarity)
+    
+    if len(visual_cue) != 0:
+        assert len(visual_cue) == len(visual_cue_similarity)
+        visual_cue_pass = []
+        visual_cue_similarity_pass = []
+        for i in range(len(visual_cue)):
+            if visual_cue_similarity[i] >= fast_path_T:
+                visual_cue_pass.append(visual_cue[i])
+                visual_cue_similarity_pass.append(visual_cue_similarity[i])
+        visual_cue, visual_cue_similarity = visual_cue_pass, visual_cue_similarity_pass
     return image_path, visual_cue, visual_cue_similarity, question_with_test_template, query_keywords
 
 

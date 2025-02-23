@@ -443,7 +443,7 @@ def calculate_similarity_matrix(img_feats, text_feats, logit_scale_exp, need_fea
         if need_feat_normalize:
             img_feats /= img_feats.norm(dim=-1, keepdim=True)
             text_feats /= text_feats.norm(dim=-1, keepdim=True)
-        text2patch_similarity = (logit_scale_exp * img_feats @ text_feats.t()).t()
+        text2patch_similarity = (logit_scale_exp * img_feats @ text_feats.t()).t().softmax(dim=-1)
     return text2patch_similarity
 
 
