@@ -81,7 +81,7 @@ def vit_patchify(image_path, patch_save_root, patch_size=448):
     return resized_image, original_image, patch_dict, image_save_dir
 
 
-def cc_patchify(image_path, patch_save_root, c_denom=6):
+def cc_patchify(image_path, patch_save_root, c_denom):
     """
     Get image patches with patch-cc scheme
     (bs, 3, h, w) -> (bs, p, 3, h_p, w_p)
@@ -214,7 +214,7 @@ def cc_patchify(image_path, patch_save_root, c_denom=6):
         stride_w = floor(kernel_w - (kernel_w - c_w) / c_w)
         img_patches = return_sliding_windows(img_resize, kernel_h, kernel_w, stride_h, stride_w)
         patch_container.append(img_patches)
-        print("level: {}, kernel h: {}, kernel w: {}, stride h: {}, stride w: {}".format(n, kernel_h, kernel_w, stride_h, stride_w))
+        print("level: {}, count: {}, kernel h: {}, kernel w: {}, stride h: {}, stride w: {}".format(n, len(img_patches), kernel_h, kernel_w, stride_h, stride_w))
         patch_size_list.append(len(img_patches))
         n += 1
     index_array, vl = index_of_last_apperance(patch_size_list)

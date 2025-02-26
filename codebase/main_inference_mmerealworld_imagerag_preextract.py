@@ -209,7 +209,7 @@ def image_rag(config, contrastive_vlm_pack, line, client, logger,
     if  config["patch_method"] == "vit":
         img_resize, original_image, coordinate_patchname_dict, image_save_dir = vit_patchify(image_path, patch_saving_dir, patch_size=config['model_input_image_size'])
     elif config["patch_method"] == "cc":
-        img_resize, original_image, coordinate_patchname_dict, image_save_dir = cc_patchify(image_path, patch_saving_dir, c_denom=10)
+        img_resize, original_image, coordinate_patchname_dict, image_save_dir = cc_patchify(image_path, patch_saving_dir, c_denom=20)
 
     logger.info(
         "resize image to width and height: {}, {}, for patchify.".format(img_resize.size[0], img_resize.size[1]))

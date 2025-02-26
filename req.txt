@@ -1,4 +1,4 @@
-transformers=4.37.0
+transformers==4.37.0
 ray
 lightning
 open_clip_torch
