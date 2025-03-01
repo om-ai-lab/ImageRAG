@@ -156,6 +156,7 @@ def extract_vlm_img_text_feat(query, key_text, coordinate_patchname_dict, patch_
         save_dict = pkl.load(open(visfeat_saving_path, "rb"))
         image_features, bbox_coordinate_list = save_dict["image_features"], save_dict["bbox_coordinate_list"]
     else:
+        print("Does not contain {}, extracting features...".format(visfeat_saving_path))
         with torch.no_grad(), torch.cuda.amp.autocast():
             patch_dataset = CCDataset(coordinate_patchname_dict, patch_saving_dir, img_preprocess)
             patch_dataloader = DataLoader(patch_dataset, pin_memory=True, batch_size=img_batch_size, num_workers=os.cpu_count() // 2, shuffle=False, collate_fn=collect_fn)
@@ -223,7 +224,7 @@ def paraphrase_model_inference(model, tokenizer, query_text):
     return response
 
 def setup_vlm_model(model_path, fast_vlm_model_name, device):
-    if 'clip' in fast_vlm_model_name:
+    if fast_vlm_model_name == "georsclip":
         model, _, img_preprocess = open_clip.create_model_and_transforms(
             model_name='ViT-L-14-336-quickgelu',
             pretrained='openai',
@@ -232,8 +233,34 @@ def setup_vlm_model(model_path, fast_vlm_model_name, device):
         )
         tokenizer = open_clip.get_tokenizer(model_name='ViT-L-14-336-quickgelu')
         checkpoint = torch.load(model_path, map_location=device)
-        msg = model.load_state_dict(checkpoint, strict=False)
+        msg = model.load_state_dict(checkpoint)
         model.eval()  # model in train mode by default, impacts some models with BatchNorm or stochastic depth active
+        print("Load GeoRSCLIP")
+
+    elif fast_vlm_model_name == "clip":
+        model, _, img_preprocess = open_clip.create_model_and_transforms(
+            model_name='ViT-L-14-336-quickgelu',
+            pretrained='openai',
+            precision="fp16",
+            device=device
+        )
+        tokenizer = open_clip.get_tokenizer(model_name='ViT-L-14-336-quickgelu')
+        model = model.to(device).eval()
+        print("Load CLIP")
+
+
+    elif fast_vlm_model_name == "remoteclip":
+        model, _, img_preprocess = open_clip.create_model_and_transforms(
+            'ViT-L-14',
+            pretrained='openai',
+            precision="fp16"
+        )
+        tokenizer = open_clip.get_tokenizer(model_name='ViT-L-14')
+        checkpoint = torch.load(model_path, map_location="cpu")
+        msg = model.load_state_dict(checkpoint)
+        print(msg)
+        model = model.to(device).eval()
+        print("Load RemoteCLIP")
 
     return model, img_preprocess, tokenizer
 

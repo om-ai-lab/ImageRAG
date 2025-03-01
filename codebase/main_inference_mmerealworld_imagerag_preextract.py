@@ -215,7 +215,8 @@ def image_rag(config, contrastive_vlm_pack, line, client, logger,
         "resize image to width and height: {}, {}, for patchify.".format(img_resize.size[0], img_resize.size[1]))
 
     fast_path_vlm, img_preprocess, text_tokenizer = contrastive_vlm_pack
-    fast_path_vlm_name = os.path.splitext(os.path.basename(config["fast_vlm_model"]["model_path"]))[0]
+    # fast_path_vlm_name = os.path.splitext(os.path.basename(config["fast_vlm_model"]["model_path"]))[0]
+    fast_path_vlm_name = config["fast_vlm_model"]["model_name"]
     # Fast Path
     vlm_image_feats, vlm_text_feats, bbox_coordinate_list = extract_vlm_img_text_feat(
         question,

@@ -95,17 +95,44 @@ def extract_image_feature(task_id, model_path, img_path_list, batch_size, num_gp
     # os.environ['CUDA_VISIBLE_DEVICES'] = '0'
     device = 'cuda' if num_gpu > 0 else 'cpu'
     print("device: {}".format(device))
+    print("Loading given ckpt")
 
-    model, _, img_preprocess = open_clip.create_model_and_transforms(
-        model_name='ViT-L-14-336-quickgelu',
-        pretrained='openai',
-        precision="fp16",
-    )
-    model = model.to(device)
-    if clip_encoder_name == "GeoRSCLIP":
+    print(clip_encoder_name)
+    
+    
+    if clip_encoder_name=="RemoteCLIP":
+        model, _, img_preprocess = open_clip.create_model_and_transforms(
+            'ViT-L-14',
+            # pretrained='openai',
+            # precision="fp16"
+        )
+        checkpoint = torch.load(model_path, map_location="cpu")
+        msg = model.load_state_dict(checkpoint)
+        print(msg)
+        model = model.to(device).eval()
+        print("Load RemoteCLIP")
+        
+    elif clip_encoder_name=="GeoRSCLIP":
+        model, _, img_preprocess = open_clip.create_model_and_transforms(
+            model_name='ViT-L-14-336-quickgelu',
+            pretrained='openai',
+            precision="fp16",
+        )
         checkpoint = torch.load(model_path, map_location=device)
-        msg = model.load_state_dict(checkpoint, strict=False)
-    model.eval()  # model in train mode by default, impacts some models with BatchNorm or stochastic depth active
+        msg = model.load_state_dict(checkpoint)
+        print(msg)
+        model=model.to(device).eval()
+        print("Load GeoRSCLIP")
+
+        
+    elif clip_encoder_name == "CLIP":
+        print("Load CLIP")
+        model, _, img_preprocess = open_clip.create_model_and_transforms(
+            model_name='ViT-L-14-336-quickgelu',
+            pretrained='openai',
+            precision="fp16",
+        )
+        model = model.to(device).eval()
 
     dataset = ImageFeatureExtractionDataset(img_path_list, img_preprocess)
     dataloader = DataLoader(dataset, batch_size=batch_size, num_workers=0)
@@ -163,8 +190,21 @@ def extract(args, modality="image"):
     ray_resources = ray.available_resources()
     print('available devices: {}'.format(ray_resources))
 
-    if modality == "image":
-        all_imgs_paths = get_all_img_path(os.path.join(args.dataset_img_dir))
+    if modality == "lrsd":
+        
+        pkl_file_path = args.merged_pkl_path
+
+        base_dir = args.dataset_img_dir
+
+        with open(pkl_file_path, "rb") as f:
+            df = pkl.load(f)
+
+        all_imgs_paths = []
+        for rel_path in tqdm(df["relative_storage_path"]):
+            file_path = os.path.join(base_dir, rel_path) if base_dir else rel_path
+            all_imgs_paths.append(file_path)
+        
+        # all_imgs_paths = get_all_img_path(os.path.join(args.dataset_img_dir))
         print("total number of images in directory {}: {}".format(args.dataset_img_dir, len(all_imgs_paths)))
         print("non repeat imgs: {}".format(len(set(all_imgs_paths))))
         resource_assignment = assign_img_per_gpu(args.num_runner, len(all_imgs_paths))
@@ -178,7 +218,7 @@ def extract(args, modality="image"):
         for task_id, img_path_list in enumerate(img_path_assignments):
             status = extract_image_feature.options(num_cpus=4, num_gpus=args.num_gpu).remote(
                 # model_path, img_path_list, batch_size, num_gpu, clip_encoder_name="GeoRSCLIP"
-                task_id, args.model_path, img_path_list, args.batch_size, args.num_gpu, args.save_dir
+                task_id, args.model_path, img_path_list, args.batch_size, args.num_gpu, args.save_dir, clip_encoder_name=args.encoder_name
             )
             result_status.append(status)
             print("runner: {}".format(task_id))
@@ -188,7 +228,7 @@ def extract(args, modality="image"):
         print(tic - toc)
 
 
-    if modality == "pub11":
+    if modality == "crsd":
         # all_imgs_paths = get_all_img_path(os.path.join(args.dataset_img_dir))
         pub11_train_pd = pd.read_csv(args.pub11_csv_train_path)
         pub11_val_pd = pd.read_csv(args.pub11_csv_val_path)
@@ -210,7 +250,7 @@ def extract(args, modality="image"):
         for task_id, img_path_list in enumerate(img_path_assignments):
             status = extract_image_feature.options(num_cpus=4, num_gpus=args.num_gpu).remote(
                 # model_path, img_path_list, batch_size, num_gpu, clip_encoder_name="GeoRSCLIP"
-                task_id, args.model_path, img_path_list, args.batch_size, args.num_gpu, args.save_dir
+                task_id, args.model_path, img_path_list, args.batch_size, args.num_gpu, args.save_dir, clip_encoder_name=args.encoder_name
             )
             result_status.append(status)
             print("runner: {}".format(task_id))
@@ -220,7 +260,7 @@ def extract(args, modality="image"):
         print(tic - toc)
 
 
-def main():
+def main_crsd():
     # ray start --head --port=6379
     parser = argparse.ArgumentParser()
 
@@ -237,16 +277,18 @@ def main():
 
     parser.add_argument('--batch_size', type=int, default=1000, help='batch size')
 
+    parser.add_argument('--encoder_name', type=str, default="CLIP", help='local mode or auto mode')
+
     parser.add_argument('--dataset_img_dir', type=str,
-                        default="/data1/zilun/dataset/pub11/img",
+                        default="/data9/zilun/grsm/dataset",
                         help='dir of images needed to be extracted')
 
     parser.add_argument('--save_dir', type=str,
-                        default="/data1/zilun/dataset/pub11/img_feat",
+                        default="/data1/zilun/dataset/pub11/img_feat/clip",
                         help='dir of images needed to be extracted')
 
     parser.add_argument('--model_path', type=str,
-                        default="/data9/zilun/ImageRAG0214/checkpoint/RS5M_ViT-L-14-336.pt",
+                        default="/data1/zilun/ImageRAG0226/checkpoint/RemoteCLIP/RemoteCLIP-ViT-L-14.pt",
                         help='model_path')
 
     parser.add_argument('--pub11_csv_train_path', type=str,
@@ -259,8 +301,55 @@ def main():
 
     args = parser.parse_args()
 
-    extract(args, modality="pub11")
+    extract(args, modality="lrsd")
+    
+    
 
+def main_lrsd():
+    # /data9/zilun/grsm/dataset/dataset/new_merged_updated_millionaid.pkl
+
+    # ray start --head --port=6379
+    parser = argparse.ArgumentParser()
+
+    parser.add_argument('--num_runner', type=int, default=1,
+                        help='number of runner')
+    # #gpu per runner
+    parser.add_argument('--num_gpu', type=int, default=1,
+                        help='number of gpu per trail')
+    # #cpu per runner
+    parser.add_argument('--num_cpu', type=int, default=4,
+                        help='number of cpu per trail')
+
+    parser.add_argument('--ray_mode', type=str, default="local_run", help='local mode or auto mode')
+
+    parser.add_argument('--batch_size', type=int, default=1000, help='batch size')
+
+    parser.add_argument('--encoder_name', type=str, default="CLIP", help='local mode or auto mode')
+    
+    
+    parser.add_argument('--merged_pkl_path', type=str,
+                        default="/data9/zilun/grsm/dataset/dataset/new_merged_updated_millionaid.pkl",
+                        help='dir of images needed to be extracted')
+
+    parser.add_argument('--dataset_img_dir', type=str,
+                        default="/data9/zilun/grsm/dataset",
+                        help='dir of images needed to be extracted')
+
+    parser.add_argument('--save_dir', type=str,
+                        default="/data1/zilun/dataset/lrsd/img_feat/clip",
+                        help='dir of images needed to be extracted')
+
+    parser.add_argument('--model_path', type=str,
+                        # default="/data1/zilun/ImageRAG0226/checkpoint/RemoteCLIP/RemoteCLIP-ViT-L-14.pt",
+                        default="/data1/zilun/ImageRAG0226/checkpoint/RS5M_ViT-L-14-336.pt",
+                        help='model_path')
+    
+    
+    
+    args = parser.parse_args()
+
+    extract(args, modality="lrsd")
+    
 
 
 def deduplicate_result_dict(result_dict_path, new_result_dict_path, sentence_bert_path="/media/zilun/wd-161/hf_download/all-MiniLM-L6-v2"):
@@ -318,10 +407,78 @@ def deduplicate_result_dict(result_dict_path, new_result_dict_path, sentence_ber
     return vector_database_content
 
 
-def merge_ray_feat(pub11_csv_train_path, pub11_csv_val_path, feat_dir, save_path):
+def merge_ray_feat_crsd(pub11_csv_train_path, pub11_csv_val_path, feat_dir, save_path):
     pub11_train_pd = pd.read_csv(pub11_csv_train_path)
     pub11_val_pd = pd.read_csv(pub11_csv_val_path)
     pub11_pd = pd.concat([pub11_train_pd, pub11_val_pd])
+    pd_img_names = pub11_pd["file_name"].tolist()
+    pd_texts = pub11_pd["text"].tolist()
+    img_text_dict = dict(zip(pd_img_names, pd_texts))
+    
+    def list_imgname2text(img_names):
+        text_list = []
+        for img_name in img_names:
+            text = img_text_dict[img_name]
+            text_list.append(text)
+        return text_list
+
+    all_image_names = []
+    all_features = []
+    all_text = []
+
+    # 遍历目录中的所有 pkl 文件
+    pkl_files = glob.glob(os.path.join(feat_dir, "*.pkl"))
+
+    for file_path in tqdm(pkl_files):
+        # 加载 pkl 文件
+        with open(file_path, 'rb') as f:
+            data = pkl.load(f)  # 假设数据是一个字典，包含 image_name 和 feat
+            
+        # 提取 image_name 和 feat 数据
+        image_names = data['img_name_list']
+        feats = data['feat_list']
+        texts = list_imgname2text(image_names)
+
+        all_image_names.extend(image_names)
+        all_features.extend(feats)
+        all_text.extend(texts)
+
+    # assert len(vector_database_content["img_name_list"]) == len(vector_database_content["label_list"]) == len(vector_database_content["feat"])
+
+    result = {
+        "img_name_list": all_image_names,
+        "label_list": all_text,
+        "feat": all_features
+    }
+    
+    for i in range(5):
+        print(all_image_names[i], all_text[i], all_features[i].shape)
+        
+        
+    pkl.dump(result, open(save_path, "wb"))
+    
+    return result
+
+
+
+def merge_ray_feat_lrsd(merged_pkl_path, feat_dir, save_path):
+    pub11_train_pd = pd.read_csv(csv_pkl_path)
+    pub11_val_pd = pd.read_csv(pub11_csv_val_path)
+    pub11_pd = pd.concat([pub11_train_pd, pub11_val_pd])
+    
+    
+    pkl_file_path = merged_pkl_path
+
+    base_dir = args.dataset_img_dir
+
+    with open(pkl_file_path, "rb") as f:
+        df = pkl.load(f)
+
+    all_imgs_paths = []
+    for rel_path in tqdm(df["relative_storage_path"]):
+        file_path = rel_path
+        all_imgs_paths.append(file_path)
+
     pd_img_names = pub11_pd["file_name"].tolist()
     pd_texts = pub11_pd["text"].tolist()
     img_text_dict = dict(zip(pd_img_names, pd_texts))
@@ -374,7 +531,7 @@ def merge_ray_feat(pub11_csv_train_path, pub11_csv_val_path, feat_dir, save_path
 
 
 if __name__ == "__main__":
-    main()
+    main_lrsd()
     
     # new_vector_database_content = deduplicate_result_dict(
     #     "/media/zilun/fanxiang4t/GRSM/ImageRAG0214/data/georsclip_feat_label_all_server.pkl",
@@ -384,6 +541,6 @@ if __name__ == "__main__":
     # merge_ray_feat(
     #     "/data9/zilun/dataset/RS5M/pub11_train_metadata.csv",
     #     "/data9/zilun/dataset/RS5M/pub11_validation_metadata.csv",
-    #     "/data1/zilun/dataset/pub11/img_feat",
-    #     "/data9/zilun/ImageRAG0214/data/georsclip_pub11feat_label_3M.pkl"
+    #     "/data1/zilun/dataset/pub11/img_feat/remoteclip",
+    #     "/data1/zilun/ImageRAG0226/data/remoteclip_pub11feat_label_3M.pkl"
     # )
