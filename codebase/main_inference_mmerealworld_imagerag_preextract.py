@@ -566,7 +566,7 @@ def inference_internvl(config, questions, ans_file_path, generative_vlm_pack, cl
                 final_instruction = "<image>\n"
                 final_instruction += "Additional information:\n"
                 for i, bbox in enumerate(visual_cues):
-                    final_instruction += "Sub-patch {} at location <box>[[{:.2f}, {:.2f}, {:.2f}, {:.2f}]]</box> with 0.99 confidence: <image>\n".format(i + 1, *bbox)
+                    final_instruction += "Sub-patch {} at location <box>[[{:.2f}, {:.2f}, {:.2f}, {:.2f}]]</box>: <image>\n".format(i + 1, *bbox)
                 # final_instruction += "Look at {} of the image and answer the question based on the provided additional information (location of sub-patches). \n".format(relative_pos)
                 final_instruction += "Look at the image and answer the question based on the provided additional information (location of sub-patches). \n"
                 final_instruction += "Question: "

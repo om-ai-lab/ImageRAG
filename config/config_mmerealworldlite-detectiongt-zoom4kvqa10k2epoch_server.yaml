@@ -29,7 +29,7 @@ chunk_idx:
   0
 
 mode:
-  "imagerag"
+  "detection_gt"
 
 paraphrase_model:
     model_name:
@@ -95,20 +95,20 @@ llmvqa_model:
 vector_database:
     # legacy rs dataset
     lrsd_meta_pkl_path:
-        "/data1/zilun/ImageRAG0226/data/georsclip_lrsdfeat_label_1M.pkl"
-    pub11_meta_pkl_path:
-        "/data1/zilun/ImageRAG0226/data/georsclip_pub11feat_label_3M.pkl"
+        "/data1/zilun/ImageRAG0226/data/lrsd_clip_3M.pkl"
+    crsd_meta_pkl_path:
+        "/data1/zilun/ImageRAG0226/data/crsd_clip_3M.pkl"
     lrsd_vector_database_dir:
       "cache/vector_database/lrsd_vector_database"
-    pub11_vector_database_dir:
-      "cache/vector_database/pub11_vector_database"
+    crsd_vector_database_dir:
+      "cache/vector_database/crsd_vector_database"
     mm_vector_database_dir:
       "cache/vector_database/mm_vector_database"
 
 question_file_path:
   "/data1/zilun/ImageRAG0226/codebase/inference/MME-RealWorld-RS/MME-RealWorld-Lite-toi_corrected.json"
 answers_file_path:
-  "/data1/zilun/ImageRAG0226/data/eval/answer-corrected-mmerealworldlite_8Bzoom4kvqa10k_imagerag_cc_clip.jsonl"
+  "/data1/zilun/ImageRAG0226/data/eval/mmerealworldlite_zoom4kvqa10k_detectiongt.jsonl"
 
 batch_size:
   1

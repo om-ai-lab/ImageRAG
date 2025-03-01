@@ -4,7 +4,7 @@ import re
 import argparse
 from tqdm import tqdm 
 parser = argparse.ArgumentParser()
-parser.add_argument("--results_file", type=str, default='/media/zilun/fanxiang4t/GRSM/ImageRAG0214/data/eval/answer-corrected-mme-lite_8B_imagerag.jsonl')
+parser.add_argument("--results_file", type=str, default='/data1/zilun/ImageRAG0226/data/eval/mmerealworldlite_zoom4kvqa10k_detectiongt.jsonl')
 args = parser.parse_args()
 
 TASKS = [

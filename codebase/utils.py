@@ -719,11 +719,11 @@ def setup_pub11_vsd(config):
     text_embeddings = HuggingFaceEmbeddings(model_name=slow_text_emb_model_path)
 
     vsd_wd_flag = False
-    vs_work_dir = os.path.join(config["work_dir"], config["vector_database"]["pub11_vector_database_dir"])
+    vs_work_dir = os.path.join(config["work_dir"], config["vector_database"]["lrsd_vector_database_dir"])
     if os.path.exists(vs_work_dir):
         vsd_wd_flag = True
 
-    meta_pkl_path = config["vector_database"]["pub11_meta_pkl_path"]
+    meta_pkl_path = config["vector_database"]["crsd_meta_pkl_path"]
     # 'img_name_list' 'label_list' 'feat'
     vector_database_content = pkl.load(open(meta_pkl_path, "rb"))
     assert len(vector_database_content["img_name_list"]) == len(vector_database_content["label_list"]) == len(
@@ -744,7 +744,7 @@ def setup_pub11_vsd(config):
         imgname2feat_dict[img_name] = feat
 
     vectorstore = Chroma(
-        collection_name="pub11_vector_store4keyphrase_label_matching",
+        collection_name="lrsd_vector_store4keyphrase_label_matching",
         embedding_function=text_embeddings,
         persist_directory=vs_work_dir,
         # Where to save data locally, remove if not necessary

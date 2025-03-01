@@ -392,10 +392,12 @@ def deduplicate_result_dict(result_dict_path, new_result_dict_path, sentence_ber
         if not is_duplicate:
             unique_labels.append(label)
             seen_labels.append(label)
-    print(unique_labels)
-    print(len(unique_labels))
     print(label_map)
     print(len(label_map))
+    
+    print(unique_labels)
+    print(len(unique_labels))
+
 
     new_label_list = []
     for label in label_list:
@@ -462,25 +464,22 @@ def merge_ray_feat_crsd(pub11_csv_train_path, pub11_csv_val_path, feat_dir, save
 
 
 def merge_ray_feat_lrsd(merged_pkl_path, feat_dir, save_path):
-    pub11_train_pd = pd.read_csv(csv_pkl_path)
-    pub11_val_pd = pd.read_csv(pub11_csv_val_path)
-    pub11_pd = pd.concat([pub11_train_pd, pub11_val_pd])
-    
     
     pkl_file_path = merged_pkl_path
 
-    base_dir = args.dataset_img_dir
-
     with open(pkl_file_path, "rb") as f:
         df = pkl.load(f)
-
+    
     all_imgs_paths = []
     for rel_path in tqdm(df["relative_storage_path"]):
         file_path = rel_path
         all_imgs_paths.append(file_path)
+    print(len(all_imgs_paths))
 
-    pd_img_names = pub11_pd["file_name"].tolist()
-    pd_texts = pub11_pd["text"].tolist()
+    
+    pd_img_names = df["relative_storage_path"].tolist()
+    pd_img_names = [img_name.split("/")[-1] for img_name in pd_img_names]
+    pd_texts = df["label"].tolist()
     img_text_dict = dict(zip(pd_img_names, pd_texts))
     
     def list_imgname2text(img_names):
@@ -505,6 +504,9 @@ def merge_ray_feat_lrsd(merged_pkl_path, feat_dir, save_path):
         # 提取 image_name 和 feat 数据
         image_names = data['img_name_list']
         feats = data['feat_list']
+        
+        # pdb.set_trace()
+
         texts = list_imgname2text(image_names)
 
         all_image_names.extend(image_names)
@@ -524,23 +526,30 @@ def merge_ray_feat_lrsd(merged_pkl_path, feat_dir, save_path):
         
         
     pkl.dump(result, open(save_path, "wb"))
-    
+    print(save_path)
     return result
     
 
 
 
 if __name__ == "__main__":
-    main_lrsd()
+    # main_lrsd()
     
-    # new_vector_database_content = deduplicate_result_dict(
-    #     "/media/zilun/fanxiang4t/GRSM/ImageRAG0214/data/georsclip_feat_label_all_server.pkl",
-    #     "/media/zilun/fanxiang4t/GRSM/ImageRAG0214/data/georsclip_feat_label_1M.pkl"
-    # )
+    new_vector_database_content = deduplicate_result_dict(
+        "/data1/zilun/ImageRAG0226/data/lrsd_georsclip_1M.pkl",
+        "/data1/zilun/ImageRAG0226/data/lrsd_georsclip_1M_dedup.pkl",
+        sentence_bert_path="/data1/zilun/ImageRAG0226/checkpoint/all-MiniLM-L6-v2"
+    )
     
     # merge_ray_feat(
     #     "/data9/zilun/dataset/RS5M/pub11_train_metadata.csv",
     #     "/data9/zilun/dataset/RS5M/pub11_validation_metadata.csv",
     #     "/data1/zilun/dataset/pub11/img_feat/remoteclip",
     #     "/data1/zilun/ImageRAG0226/data/remoteclip_pub11feat_label_3M.pkl"
+    # )
+    
+    # merge_ray_feat_lrsd(
+    #     "/data1/zilun/ImageRAG0226/data/new_merged_updated_millionaid.pkl",
+    #     "/data1/zilun/dataset/lrsd/img_feat/clip",
+    #     "/data1/zilun/ImageRAG0226/data/lrsd_clip_3M.pkl"
     # )
