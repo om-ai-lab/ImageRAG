@@ -20,7 +20,7 @@ use_dynamic:
   1
 
 fast_path_T:
-  0.25
+  0.4
 
 num_chunks:
   1
@@ -95,7 +95,7 @@ llmvqa_model:
 vector_database:
     # legacy rs dataset
     lrsd_meta_pkl_path:
-        "/data1/zilun/ImageRAG0226/data/lrsd_clip_3M.pkl"
+        "/data1/zilun/ImageRAG0226/data/lrsd_clip_1M.pkl"
     crsd_meta_pkl_path:
         "/data1/zilun/ImageRAG0226/data/crsd_clip_3M.pkl"
     lrsd_vector_database_dir:

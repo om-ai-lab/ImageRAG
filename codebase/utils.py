@@ -151,12 +151,13 @@ def collect_fn(batch):
 def extract_vlm_img_text_feat(query, key_text, coordinate_patchname_dict, patch_saving_dir, img_preprocess, text_tokenizer, fast_path_vlm, img_batch_size, feat_saving_dir, fastvlm_encoder_name):
     device = fast_path_vlm.logit_scale.device
     visfeat_saving_path = os.path.join(feat_saving_dir, "{}_vis_feat.pkl".format(fastvlm_encoder_name))
-
+    print("Check visual feature saving path: {}".format(visfeat_saving_path))
     if os.path.exists(visfeat_saving_path):
         save_dict = pkl.load(open(visfeat_saving_path, "rb"))
+        print("Cache found: {}".format(visfeat_saving_path))
         image_features, bbox_coordinate_list = save_dict["image_features"], save_dict["bbox_coordinate_list"]
     else:
-        print("Does not contain {}, extracting features...".format(visfeat_saving_path))
+        print("Does not contain {}, begin extracting features".format(visfeat_saving_path))
         with torch.no_grad(), torch.cuda.amp.autocast():
             patch_dataset = CCDataset(coordinate_patchname_dict, patch_saving_dir, img_preprocess)
             patch_dataloader = DataLoader(patch_dataset, pin_memory=True, batch_size=img_batch_size, num_workers=os.cpu_count() // 2, shuffle=False, collate_fn=collect_fn)
@@ -475,8 +476,14 @@ def calculate_similarity_matrix(img_feats, text_feats, logit_scale_exp, need_fea
 
 
 def ranking_patch_t2p(bbox_coordinate_list, t2p_similarity, top_k):
+    """
+    If t2p_similarity is a 3 * 600 matrix. There are 3 key phrases and 600 image patches
+    
+    Step 1. Select most frequenced appeared image patches (top k)
+    """
     values, index = t2p_similarity.topk(top_k)
-    # should be 5 * 3 = 15 candidates
+
+    # should be 5 * 3 = 15 candidates if 5 keywords and top_k=3
     # top1patch_per_keyphrase = values[:, :1].flatten().tolist()
     # all key words together, most frequent appeared patches (topk)
     flat_values = values.flatten().tolist()
@@ -497,7 +504,7 @@ def ranking_patch_t2p(bbox_coordinate_list, t2p_similarity, top_k):
 
     index_select = list(select_index_similarity_dict.keys())
     similarity_select = list(select_index_similarity_dict.values())
-
+    print("Frequency selection: {}".format(similarity_select))
 
     # top1 patch for each text keywords
     top1patch_value_per_keyphrase = values[:, :1].flatten().tolist()
@@ -510,7 +517,8 @@ def ranking_patch_t2p(bbox_coordinate_list, t2p_similarity, top_k):
         if top1_index not in top_k_element_index:
             select_top1_value_list.append(top1patch_value_per_keyphrase[i])
             select_top1_index_list.append(top1_index)
-
+    
+    print("Rank1 selection: {}".format(select_top1_value_list))
     candidate_index = index_select + select_top1_index_list
     candidate_similarity = similarity_select + select_top1_value_list
 
@@ -761,6 +769,23 @@ def setup_pub11_vsd(config):
             vectorstore.add_texts(texts=batch_texts, metadatas=batch_meta)
 
     return vectorstore, label2imgname_dict, imgname2feat_dict
+
+
+def filter_visual_cue_basedon_T(visual_cues, visual_cues_similarity, T):
+    selected_visual_cue = []
+    selected_visual_cue_confidence = []
+    for cue, conf in zip(visual_cues, visual_cues_similarity):
+        if conf > T:
+            selected_visual_cue.append(cue)
+            selected_visual_cue_confidence.append(conf)
+    
+    selected_with_confidence = list(zip(selected_visual_cue, selected_visual_cue_confidence))
+    selected_with_confidence.sort(key=lambda x: -x[1])  # 按 confidence 从高到低排序
+
+    # 分离出 visual_cue 和 confidence
+    sorted_visual_cue = [cue for cue, conf in selected_with_confidence]
+    sorted_confidence = [conf for cue, conf in selected_with_confidence]
+    return sorted_visual_cue, sorted_confidence
 
 
 class VanillaDataset(Dataset):

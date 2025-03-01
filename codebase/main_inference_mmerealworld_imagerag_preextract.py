@@ -33,7 +33,7 @@ from codebase.utils import (setup_vlm_model, set_up_paraphrase_model, setup_vqal
                             paraphrase_model_inference, text_expand_model_inference, setup_logger, meta_df2clsimg_dict,
                             img_reduce, select_visual_cue, ranking_patch_visualcue2patch, load_yaml, get_chunk,
                             convert_obb_to_region_str, obb2minhbb, sole_visualcue2mergedvisualcue, visualcue2imagepatch,
-                            reduce_visual_cue_per_cls, setup_lrsd_vsd, setup_pub11_vsd, bbox_location)
+                            reduce_visual_cue_per_cls, setup_lrsd_vsd, setup_pub11_vsd, bbox_location, filter_visual_cue_basedon_T)
 from codebase.sglang_util import get_paraphase_response, get_keyword_response, get_text_expansion_response
 from codebase.utils import load_yaml
 from codebase.patchify import cc_patchify, vit_patchify
@@ -131,7 +131,7 @@ def image_rag(config, contrastive_vlm_pack, line, client, logger,
               text_paraphrase, text_expand
               ):
     patch_saving_dir = os.path.join(config['work_dir'], config['patch_saving_dir'])
-    fast_path_T = int(config['fast_path_T'])
+    fast_path_T = config['fast_path_T']
     paraphrase_model_config = config['paraphrase_model']
     kw_model_config = config['kw_model']
     text_expansion_model_config = config['text_expansion_model']
@@ -196,15 +196,6 @@ def image_rag(config, contrastive_vlm_pack, line, client, logger,
 
     logger.info("Final Key Phrases: {}".format(query_keywords))
 
-    # # patchify -> padded image and dict of bbox - patch save name
-    # img_resize, coordinate_patchname_dict = cc_patchify(
-    #     input_uhr_image,
-    #     image_file.split(".")[0],
-    #     c_denom=10,
-    #     dump_imgs=True,
-    #     # dump_imgs=False, Not working
-    #     patch_saving_dir=patch_saving_dir
-    # )
     patch_saving_dir = os.path.join(patch_saving_dir, config["patch_method"])
     if  config["patch_method"] == "vit":
         img_resize, original_image, coordinate_patchname_dict, image_save_dir = vit_patchify(image_path, patch_saving_dir, patch_size=config['model_input_image_size'])
@@ -238,11 +229,13 @@ def image_rag(config, contrastive_vlm_pack, line, client, logger,
     logger.info("Ranked Patch Shape: {}".format(visual_cue.shape))
     logger.info("visual_cue similarity: {}".format(visual_cue_similarity))
 
+    visual_cue, visual_cue_similarity = filter_visual_cue_basedon_T(visual_cue, visual_cue_similarity, fast_path_T)
+    
     # pdb.set_trace()
     # Slow Path
-    if max(visual_cue_similarity) < fast_path_T:
+    if len(visual_cue) == 0:
         logger.info("fast path similarity does not meet the threshold {}, choose the slow path".format(fast_path_T))
-
+        logger.info("<path>Slow</path>")
         if text_expand:
             if not text_expansion_model_config:
                 text_expansion_model_config = paraphrase_model_config
@@ -289,12 +282,14 @@ def image_rag(config, contrastive_vlm_pack, line, client, logger,
                 img_feat_selected_per_cls = []
                 img_names = lrsd_vsd_label2imgname_dict[label]
                 for img_name in img_names:
-                    feat = lrsd_vsd_imgname2feat_dict[img_name].unsqueeze(0)
+                    # feat = lrsd_vsd_imgname2feat_dict[img_name].unsqueeze(0)
+                    feat = torch.from_numpy(lrsd_vsd_imgname2feat_dict[img_name])
                     img_feat_selected_per_cls.append(feat)
                 img_feat_selected_per_cls = torch.cat(img_feat_selected_per_cls)
                 visual_cue_candidates_dict[label] = img_feat_selected_per_cls
             reduced_visual_cue_per_cls = reduce_visual_cue_per_cls(visual_cue_candidates_dict, reduce_fn="mean", need_feat_normalize=True)
             visual_cue, visual_cue_similarity = select_visual_cue(vlm_image_feats, bbox_coordinate_list, reduced_visual_cue_per_cls, need_feat_normalize=True)
+            return image_path, visual_cue, visual_cue_similarity, question_with_test_template, query_keywords
         else:
             logger.info("No label text pass the threshold. Cannot find label that match the keywords from query. Try Pub11 VSD.")
             # pub11_vectorstore, pub11_label2imgname_dict, pub11_imgname2feat_dict,
@@ -309,7 +304,7 @@ def image_rag(config, contrastive_vlm_pack, line, client, logger,
                     # * [SIM=1.726390] The stock market is down 500 points today due to fears of a recession. [{'source': 'news'}] default l2
                     logger.info(
                         f"Query:={expanded_query_text_dict[expanded_query_text]} * [SIM={score:3f}] {res.page_content}")
-                    if score <= 0.7:
+                    if score <= 0.5:
                         selected_captions.append(res.page_content)
 
             if len(selected_captions) > 0:
@@ -325,6 +320,8 @@ def image_rag(config, contrastive_vlm_pack, line, client, logger,
 
                 reduced_visual_cue_per_cls = reduce_visual_cue_per_cls(visual_cue_candidates_dict, reduce_fn="mean", need_feat_normalize=True)
                 visual_cue, visual_cue_similarity = select_visual_cue(vlm_image_feats, bbox_coordinate_list, reduced_visual_cue_per_cls, need_feat_normalize=True)
+                print(visual_cue, visual_cue_similarity)
+                return image_path, visual_cue, visual_cue_similarity, question_with_test_template, query_keywords
             else:
                 # w, h = original_image.size
                 # visual_cue = [[0, 0, w, h]]
@@ -333,19 +330,11 @@ def image_rag(config, contrastive_vlm_pack, line, client, logger,
                 # visual_cue_similarity = []
                 logger.info("No caption text pass the threshold. Cannot find caption that match the keywords from query.")
                 return image_path, visual_cue, visual_cue_similarity, question_with_test_template, query_keywords
-            
-    print(visual_cue, visual_cue_similarity)
+    else:
+        logger.info("<path>Fast</path>")
+        print(visual_cue, visual_cue_similarity)
+        return image_path, visual_cue, visual_cue_similarity, question_with_test_template, query_keywords
     
-    if len(visual_cue) != 0:
-        assert len(visual_cue) == len(visual_cue_similarity)
-        visual_cue_pass = []
-        visual_cue_similarity_pass = []
-        for i in range(len(visual_cue)):
-            if visual_cue_similarity[i] >= fast_path_T:
-                visual_cue_pass.append(visual_cue[i])
-                visual_cue_similarity_pass.append(visual_cue_similarity[i])
-        visual_cue, visual_cue_similarity = visual_cue_pass, visual_cue_similarity_pass
-    return image_path, visual_cue, visual_cue_similarity, question_with_test_template, query_keywords
 
 
 def inference_internvl(config, questions, ans_file_path, generative_vlm_pack, client, logger):
@@ -573,52 +562,6 @@ def inference_internvl(config, questions, ans_file_path, generative_vlm_pack, cl
                 final_instruction += question_with_test_template
                 num_patches_list = [pixel_values.size(0) - len(visual_cues), len(visual_cues)]
 
-                # if config["llmvqa_model"]["generation_config"]["consistency"]:
-                #     def parse_api_result(result):
-                #         to_return = []
-                #         for idx, g in enumerate(result['choices']):
-                #             text = g['text']
-                #             logprob = sum(g['logprobs']['token_logprobs'])
-                #             to_return.append((text, logprob))
-                #         to_return = sorted(to_return, key=lambda tup: tup[1], reverse=True)
-                #         to_return = [r[0] for r in to_return]
-                #         return to_return
-                #     generative_vlm_generation_config["num_return_sequences"] = 2
-                #     generative_vlm_generation_config["output_scores"] = 1
-                #
-                #     response = generative_vlm.chat(
-                #         generative_vlm_tokenizer,
-                #         pixel_values,
-                #         final_instruction,
-                #         generative_vlm_generation_config,
-                #         num_patches_list=num_patches_list
-                #     )
-                #
-                #     from collections import Counter
-                #     # self-consistency decoding or greedy decoding.
-                #     result_counter = Counter()
-                #     generations = parse_api_result(response)
-                #     print(len(generations))
-                #     for r in generations:
-                #         ans = safe_execute(r)
-                #         ans = floatify_ans(ans)
-                #         if ans is not None:
-                #             result_counter.update([ans])
-                #
-                #     if len(result_counter) > 0:
-                #         prediction = result_counter.most_common(1)[0][0]
-                #     else:
-                #         prediction = None
-                #
-                # else:
-                #     response = generative_vlm.chat(
-                #         generative_vlm_tokenizer,
-                #         pixel_values,
-                #         final_instruction,
-                #         generative_vlm_generation_config,
-                #         num_patches_list=num_patches_list
-                #     )
-
                 response = generative_vlm.chat(
                     generative_vlm_tokenizer,
                     pixel_values,
@@ -668,74 +611,104 @@ def inference_internvl(config, questions, ans_file_path, generative_vlm_pack, cl
                 pub11_vectorstore, pub11_vsd_label2imgname_dict, pub11_vsd_imgname2feat_dict,
                 text_paraphrase=False, text_expand=False
             )
-            images, tile_num_list = [], []
-            global_and_locals = []
-            num_patches_list = []
-            image = Image.open(image_path).convert('RGB')
-            w, h = image.size
-            global_and_locals.append(image)
-            for object_coord in visual_cues:
-                image_crop = image.crop(object_coord)
-                global_and_locals.append(image_crop)
 
-            for i, image in enumerate(global_and_locals):
-                if i == 0:
-                    image = generative_vlm_dynamic_preprocess(
-                        image,
-                        # max_num=generative_vlm.config.max_dynamic_patch,
-                        max_num=6,
-                        image_size=generative_vlm.config.vision_config.image_size,
-                        use_thumbnail=False,
+            
+            if len(visual_cues) > 0:
+                images, tile_num_list = [], []
+                global_and_locals = []
+                num_patches_list = []
+                image = Image.open(image_path).convert('RGB')
+                w, h = image.size
+                global_and_locals.append(image)
+                for object_coord in visual_cues:
+                    image_crop = image.crop(object_coord)
+                    global_and_locals.append(image_crop)
+
+                for i, image in enumerate(global_and_locals):
+                    if i == 0:
+                        image = generative_vlm_dynamic_preprocess(
+                            image,
+                            max_num=generative_vlm.config.max_dynamic_patch,
+                            # max_num=6,
+                            image_size=generative_vlm.config.vision_config.image_size,
+                            use_thumbnail=False,
+                        )
+                        images += image
+                        tile_num_list.append(len(image))
+                    else:
+                        images.append(image)
+                        tile_num_list.append(1)
+
+                pixel_values = [generative_vlm_transform(image) for image in images]
+                pixel_values = torch.stack(pixel_values).to(torch.bfloat16).cuda()
+                num_patches = pixel_values.size(0) - len(visual_cues)
+
+                normalized_visual_cues = []
+                final_instruction = "<image>\n"
+                final_instruction += "Additional information:\n"
+                for i, bbox in enumerate(visual_cues):
+                    x1, y1, x2, y2 = bbox
+                    x1 = int(x1 / w * 1000)
+                    y1 = int(y1 / h * 1000)
+                    x2 = int(x2 / w * 1000)
+                    y2 = int(y2 / h * 1000)
+                    normalized_bbox = (x1, y1, x2, y2)
+                    normalized_visual_cues.append(normalized_bbox)
+                    final_instruction += "Sub-patch {} at location <box>[[{:.2f}, {:.2f}, {:.2f}, {:.2f}]]</box>: <image>\n".format(
+                        i + 1, *normalized_bbox)
+                final_instruction += "Look at the image and answer the question based on the provided additional information (location of sub-patches). \n"
+                final_instruction += "Question: "
+                final_instruction += question_with_test_template
+
+                line["visual_cue"] = normalized_visual_cues
+                line["visual_cue_confidence"] = visual_cues_similarity
+                line["target_of_interest"] = query_keywords
+
+                print(pixel_values.shape)
+                print(tile_num_list)
+                with torch.inference_mode():
+                    # TODO: visual cues contain full image, duplicate
+                    response = generative_vlm.chat(
+                        generative_vlm_tokenizer,
+                        pixel_values,
+                        final_instruction,
+                        generative_vlm_generation_config,
+                        num_patches_list=tile_num_list
                     )
-                    images += image
-                    tile_num_list.append(len(image))
-                else:
-                    images.append(image)
-                    tile_num_list.append(1)
+            else:
+                images, tile_num_list = [], []
+                image = Image.open(image_path).convert('RGB')
+                image = generative_vlm_dynamic_preprocess(
+                            image,
+                            # max_num=generative_vlm.config.max_dynamic_patch,
+                            max_num=6,
+                            image_size=generative_vlm.config.vision_config.image_size,
+                            use_thumbnail=False,
+                        )
+                images += image
+                tile_num_list.append(len(image))
+                pixel_values = [generative_vlm_transform(image) for image in images]
+                pixel_values = torch.stack(pixel_values).to(torch.bfloat16).cuda()
+                final_instruction = question_with_test_template
+                with torch.inference_mode():
+                    # TODO: visual cues contain full image, duplicate
+                    response = generative_vlm.chat(
+                        generative_vlm_tokenizer,
+                        pixel_values,
+                        final_instruction,
+                        generative_vlm_generation_config,
+                        num_patches_list=tile_num_list
+                    )
+                    
+                line["visual_cue"] = []
+                line["visual_cue_confidence"] = []
+                line["target_of_interest"] = query_keywords
 
-            pixel_values = [generative_vlm_transform(image) for image in images]
-            pixel_values = torch.stack(pixel_values).to(torch.bfloat16).cuda()
-            num_patches = pixel_values.size(0) - len(visual_cues)
-
-            normalized_visual_cues = []
-            final_instruction = "<image>\n"
-            final_instruction += "Additional information:\n"
-            for i, bbox in enumerate(visual_cues):
-                x1, y1, x2, y2 = bbox
-                x1 = int(x1 / w * 1000)
-                y1 = int(y1 / h * 1000)
-                x2 = int(x2 / w * 1000)
-                y2 = int(y2 / h * 1000)
-                normalized_bbox = (x1, y1, x2, y2)
-                normalized_visual_cues.append(normalized_bbox)
-                final_instruction += "Sub-patch {} at location <box>[[{:.2f}, {:.2f}, {:.2f}, {:.2f}]]</box>: <image>\n".format(
-                    i + 1, *normalized_bbox)
-            final_instruction += "Look at the image and answer the question based on the provided additional information (location of sub-patches). \n"
-            final_instruction += "Question: "
-            final_instruction += question_with_test_template
-
-            line["visual_cue"] = normalized_visual_cues
-            line["visual_cue_confidence"] = visual_cues_similarity
-            line["target_of_interest"] = query_keywords
-
-            print(pixel_values.shape)
-            print(tile_num_list)
-            with torch.inference_mode():
-                # TODO: visual cues contain full image, duplicate
-                response = generative_vlm.chat(
-                    generative_vlm_tokenizer,
-                    pixel_values,
-                    final_instruction,
-                    generative_vlm_generation_config,
-                    num_patches_list=tile_num_list
-                )
-                # response = "F"
-
-                logger.info(f'Prompt: {question_with_test_template}\n\n GT: {line["Ground truth"]} \n Output: {response}')
-                line['output'] = response
-                ans_file.write(json.dumps(line) + "\n")
-                ans_file.flush()
-                index += 1
+            logger.info(f'Prompt: {question_with_test_template}\n\n GT: {line["Ground truth"]} \n Output: {response}')
+            line['output'] = response
+            ans_file.write(json.dumps(line) + "\n")
+            ans_file.flush()
+            index += 1
         ans_file.close()
 
     return ans_file_path
@@ -752,7 +725,10 @@ def inference():
                         default='/media/zilun/fanxiang4t/GRSM/ImageRAG0214/config/config_internvl8b_5hbb_448_dynamic_0-1000_mmerealworld-imagerag-zoom4kvqa10k-2epoch_local-nonlite.yaml',
                         help='Path to the configuration file.')
     parser.add_argument('--log_dir', type=str, default='./log', help='Path to the log file.')
-    parser.add_argument('--base_url', type=str, default='http://127.0.0.1:30000/v1', help='base url')
+    parser.add_argument('--base_url', type=str, 
+                        # default='http://127.0.0.1:30000/v1', 
+                        default='http://192.168.0.251:30000/v1',
+                        help='base url')
 
     args = parser.parse_args()
     os.makedirs(args.log_dir, exist_ok=True)

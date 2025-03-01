@@ -25,7 +25,7 @@ Guidelines:
 - All adjectives should be part of a phrase that includes a target.
 - Do not include standalone adjectives such as adjectives that describe size, shape, color, texture, etc. unless they are paired with a target. 
 - Do not include keywords or phrases that related to position and orientation.
-- Avoid including overly vague words such as 'image', 'picture', 'photo', etc., unless they are part of a more specific phrase that provides additional context.
+- Avoid including overly vague words such as 'image', 'picture', 'photo', 'object', etc., unless they are part of a more specific phrase that provides additional context.
 
 Example:
 Input query:  "How many aircraft are heading in the up-right direction? What is the color of the building rooftop below them?"
