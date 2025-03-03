@@ -130,6 +130,7 @@ def image_rag(config, contrastive_vlm_pack, line, client, logger,
               pub11_vectorstore, pub11_label2imgname_dict, pub11_imgname2feat_dict,
               text_paraphrase, text_expand
               ):
+    imagerag_summary = []
     patch_saving_dir = os.path.join(config['work_dir'], config['patch_saving_dir'])
     fast_path_T = config['fast_path_T']
     paraphrase_model_config = config['paraphrase_model']
@@ -236,6 +237,7 @@ def image_rag(config, contrastive_vlm_pack, line, client, logger,
     # Slow Path
     if len(visual_cue) == 0:
         logger.info("fast path similarity does not meet the threshold {}, choose the slow path".format(fast_path_T))
+        imagerag_summary.append("Slow")
         logger.info("<path>Slow</path>")
         if text_expand:
             if not text_expansion_model_config:
@@ -275,6 +277,7 @@ def image_rag(config, contrastive_vlm_pack, line, client, logger,
 
         if len(selected_label_names) > 0:
             logger.info("<path>Slow-LRSD</path>")
+            imagerag_summary.append("Slow-LRSD")
             selected_label_names = list(set(selected_label_names))
             logger.info("Selected labels from Text VSD: {}".format(selected_label_names))
             # label -> feats dict
@@ -311,6 +314,7 @@ def image_rag(config, contrastive_vlm_pack, line, client, logger,
 
             if len(selected_captions) > 0:
                 logger.info("<path>Slow-CRSD</path>")
+                imagerag_summary.append("Slow-CRSD")
                 visual_cue_candidates_dict = dict()
                 for caption in selected_captions:
                     img_feat_selected_per_caption = []
@@ -332,9 +336,11 @@ def image_rag(config, contrastive_vlm_pack, line, client, logger,
                 # visual_cue = []
                 # visual_cue_similarity = []
                 logger.info("No caption text pass the threshold. Cannot find caption that match the keywords from query.")
+                imagerag_summary.append("Zero-shot")
                 return image_path, visual_cue, visual_cue_similarity, question_with_test_template, query_keywords
     else:
         logger.info("<path>Fast</path>")
+        imagerag_summary.append("Fast")
         print(visual_cue, visual_cue_similarity)
         return image_path, visual_cue, visual_cue_similarity, question_with_test_template, query_keywords
     
@@ -534,7 +540,7 @@ def inference_internvl(config, questions, ans_file_path, generative_vlm_pack, cl
 
             line["visual_cue"] = line["gt_toi"]
             predict_bbox = line["visual_cue"]
-            predict_bbox = enlarge_roibox(predict_bbox, config.get("detection_gt_enlarge_factor", 1.0))
+            predict_bbox = enlarge_roibox(predict_bbox, config.get("detection_gt_enlarge_factor", 1.0), (w, h))
             predict_bbox = [int(predict_bbox[0]) / w * 1000, int(predict_bbox[1]) / h * 1000, int(predict_bbox[2]) / w * 1000, int(predict_bbox[3]) / h * 1000]
 
             if predict_bbox:

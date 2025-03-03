@@ -26,11 +26,12 @@ IMAGENET_MEAN = (0.485, 0.456, 0.406)
 IMAGENET_STD = (0.229, 0.224, 0.225)
 
 
-def enlarge_roibox(roi_box, enlarge_factor):
+def enlarge_roibox(roi_box, enlarge_factor, img_size):
     print("enlarge_factor: {}".format(enlarge_factor))
     if enlarge_factor == 1:
         return roi_box
     else: 
+        w, h = img_size
         gt_bbox = roi_box
 
         x1, y1, x2, y2 = gt_bbox
@@ -46,8 +47,15 @@ def enlarge_roibox(roi_box, enlarge_factor):
         new_y1 = center_y - new_height / 2.0
         new_x2 = center_x + new_width / 2.0
         new_y2 = center_y + new_height / 2.0
-        return [new_x1, new_y1, new_x2, new_y2]
+        
+        # 确保缩放后的边界框不会超出图像的边界
+        new_x1 = max(new_x1, 0)
+        new_y1 = max(new_y1, 0)
+        new_x2 = min(new_x2, w)
+        new_y2 = min(new_y2, h)
 
+        return [int(new_x1), int(new_y1), int(new_x2), int(new_y2)]
+        
 
 def build_generative_vlm_transform(input_size):
     MEAN, STD = IMAGENET_MEAN, IMAGENET_STD
