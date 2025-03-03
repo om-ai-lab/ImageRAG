@@ -14,7 +14,7 @@ model_input_image_size:
   448
 
 patch_method:
-  "cc"
+  "vit"
 
 use_dynamic:
   1
@@ -108,7 +108,7 @@ vector_database:
 question_file_path:
   "/data1/zilun/ImageRAG0226/codebase/inference/MME-RealWorld-RS/MME-RealWorld-Lite-toi_corrected.json"
 answers_file_path:
-  "/data1/zilun/ImageRAG0226/data/eval/mmerealworldlite_zoom4kvqa10k_imagerag_cc_clip.jsonl"
+  "/data1/zilun/ImageRAG0226/data/eval/mmerealworldlite_zoom4kvqa10k_imagerag_vit_clip.jsonl"
 
 batch_size:
   1

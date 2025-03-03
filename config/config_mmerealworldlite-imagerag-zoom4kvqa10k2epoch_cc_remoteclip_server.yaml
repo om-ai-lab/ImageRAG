@@ -20,7 +20,7 @@ use_dynamic:
   1
 
 fast_path_T:
-  0.4
+  0.2
 
 num_chunks:
   1

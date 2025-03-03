@@ -250,6 +250,123 @@ def _load_existing_patches(image_save_dir, image_name):
     return patch_dict
 
 
+
+def grid_patchify(image_path, patch_save_root, max_grid=10, enlarge_factor=1.0):
+    """
+    将图像按 1x1, 2x2, …, max_gridxmax_grid 网格划分为多个 patch, 并保存到指定目录。
+    若图像尺寸不能被当前网格数整除，则对图像进行 resize(扩展到最近能整除的尺寸)。
+    最终输出的 patch 坐标会映射回原始图像的坐标，并可按 enlarge_factor 放大。
+    
+    参数:
+      image_path (str): 输入图像路径。
+      patch_save_root (str): 保存所有 patch 的根目录。
+      max_grid (int): 最大网格数（默认 10, 即划分到 10x10)。
+      enlarge_factor (float): 放大倍数（默认 1.0, 即不放大）。
+    
+    返回:
+      resized_image (PIL.Image): 用于 patch 裁剪的图像（可能经过 resize)。
+      original_image (PIL.Image): 原始图像。
+      patch_dict (dict): 字典，其 key 为 grid 数(n)，value 为该 grid 下的 patch 字典，
+                         每个 patch 字典的 key 是 (x1, y1, x2, y2)（原始图像坐标，经过 enlarge_factor 调整），
+                         value 是对应 patch 的相对保存路径。
+      image_save_dir (str): 保存该图像所有 patch 的顶级目录。
+    """
+    from math import ceil
+    os.makedirs(patch_save_root, exist_ok=True)
+    image_name = os.path.splitext(os.path.basename(image_path))[0]
+    
+    # 打开原始图像
+    original_image = Image.open(image_path)
+    original_width, original_height = original_image.size
+
+    # 创建以图像名为子目录的保存目录
+    image_save_dir = os.path.join(patch_save_root, image_name)
+    os.makedirs(image_save_dir, exist_ok=True)
+    
+    
+    # # 如果图像尺寸不是 patch_size 的整数倍，需要对图像进行 resize
+    # new_width = int(np.ceil(original_width / patch_size)) * patch_size
+    # new_height = int(np.ceil(original_height / patch_size)) * patch_size
+
+    # if new_width != original_width or new_height != original_height:
+    #     print(f"image resize to {new_width}x{new_height}")
+    #     resized_image = original_image.resize((new_width, new_height))
+    # else:
+    #     resized_image = original_image
+    
+    
+    # 检查目录是否为空
+    if os.listdir(image_save_dir):
+        resized_image = original_image
+        print(f"dir {image_save_dir} non-empty, load existed patch file")
+        return resized_image, original_image, _load_existing_patches(image_save_dir, image_name), image_save_dir
+    
+
+    patch_dict = {}  # 用于存储各 grid 下的 patch 信息
+
+    # 对于 1×1 到 max_grid×max_grid 的划分
+    for n in range(1, max_grid + 1):
+        # 为确保整除，将图像扩展到 n 的整数倍
+        new_width = int(ceil(original_width / n)) * n
+        new_height = int(ceil(original_height / n)) * n
+
+        if new_width != original_width or new_height != original_height:
+            print(f"[Grid {n}x{n}] Resizing image to {new_width}x{new_height}")
+            resized = original_image.resize((new_width, new_height))
+        else:
+            resized = original_image
+
+        cell_width = new_width // n
+        cell_height = new_height // n
+
+        grid_dict = {}  # 存储当前 grid 下所有 patch 信息
+
+        for row in range(n):
+            for col in range(n):
+                # 在 resized 图像上计算 patch 边界
+                x1 = col * cell_width
+                y1 = row * cell_height
+                x2 = x1 + cell_width
+                y2 = y1 + cell_height
+
+                patch = resized.crop((x1, y1, x2, y2))
+                
+                # 将 resized 上的坐标映射回原始图像坐标
+                orig_x1 = int(x1 * original_width / new_width)
+                orig_y1 = int(y1 * original_height / new_height)
+                orig_x2 = int(x2 * original_width / new_width)
+                orig_y2 = int(y2 * original_height / new_height)
+
+                # 若需要放大，则以 patch 中心为基准放大 bbox 尺寸
+                if enlarge_factor != 1.0:
+                    center_x = (orig_x1 + orig_x2) / 2.0
+                    center_y = (orig_y1 + orig_y2) / 2.0
+                    width_bbox = orig_x2 - orig_x1
+                    height_bbox = orig_y2 - orig_y1
+                    new_width_bbox = width_bbox * enlarge_factor
+                    new_height_bbox = height_bbox * enlarge_factor
+                    orig_x1 = int(center_x - new_width_bbox / 2.0)
+                    orig_y1 = int(center_y - new_height_bbox / 2.0)
+                    orig_x2 = int(center_x + new_width_bbox / 2.0)
+                    orig_y2 = int(center_y + new_height_bbox / 2.0)
+                    # 可添加边界检测，避免超出原图范围
+
+                # 生成 patch 文件名，包含 grid 信息和映射后的原始坐标
+                patch_filename = f"{image_name}_{orig_x1}-{orig_y1}-{orig_x2}-{orig_y2}.png"
+                # 保存到 image_save_dir（与 cc_patchify 保持一致，不创建子文件夹）
+                patch_path = os.path.join(image_save_dir, patch_filename)
+                patch.save(patch_path)
+
+                # 存储 patch 的相对路径，格式与 cc_patchify 相同
+                relative_path = os.path.join(image_name, patch_filename)
+                patch_dict[(orig_x1, orig_y1, orig_x2, orig_y2)] = relative_path
+        # 以最后一次的 resized 图像为返回值
+        resized_image = resized
+
+    return resized_image, original_image, patch_dict, image_save_dir
+
+
+
 # 示例用法
 if __name__ == "__main__":
     # 输入图像路径

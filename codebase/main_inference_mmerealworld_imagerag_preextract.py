@@ -33,10 +33,10 @@ from codebase.utils import (setup_vlm_model, set_up_paraphrase_model, setup_vqal
                             paraphrase_model_inference, text_expand_model_inference, setup_logger, meta_df2clsimg_dict,
                             img_reduce, select_visual_cue, ranking_patch_visualcue2patch, load_yaml, get_chunk,
                             convert_obb_to_region_str, obb2minhbb, sole_visualcue2mergedvisualcue, visualcue2imagepatch,
-                            reduce_visual_cue_per_cls, setup_lrsd_vsd, setup_pub11_vsd, bbox_location, filter_visual_cue_basedon_T)
+                            reduce_visual_cue_per_cls, setup_lrsd_vsd, setup_pub11_vsd, bbox_location, filter_visual_cue_basedon_T, enlarge_roibox)
 from codebase.sglang_util import get_paraphase_response, get_keyword_response, get_text_expansion_response
 from codebase.utils import load_yaml
-from codebase.patchify import cc_patchify, vit_patchify
+from codebase.patchify import cc_patchify, vit_patchify, grid_patchify
 from codebase.text_parser import extract_key_phrases
 
 # export PYTHONPATH=$PYTHONPATH:/data1/zilun/grsm/ImageRAG_git
@@ -201,7 +201,8 @@ def image_rag(config, contrastive_vlm_pack, line, client, logger,
         img_resize, original_image, coordinate_patchname_dict, image_save_dir = vit_patchify(image_path, patch_saving_dir, patch_size=config['model_input_image_size'])
     elif config["patch_method"] == "cc":
         img_resize, original_image, coordinate_patchname_dict, image_save_dir = cc_patchify(image_path, patch_saving_dir, c_denom=20)
-
+    elif config["patch_method"] == "grid":
+        img_resize, original_image, coordinate_patchname_dict, image_save_dir = grid_patchify(image_path, patch_saving_dir, max_grid=10)
     logger.info(
         "resize image to width and height: {}, {}, for patchify.".format(img_resize.size[0], img_resize.size[1]))
 
@@ -273,6 +274,7 @@ def image_rag(config, contrastive_vlm_pack, line, client, logger,
                     selected_label_names.append(res.page_content)
 
         if len(selected_label_names) > 0:
+            logger.info("<path>Slow-LRSD</path>")
             selected_label_names = list(set(selected_label_names))
             logger.info("Selected labels from Text VSD: {}".format(selected_label_names))
             # label -> feats dict
@@ -308,6 +310,7 @@ def image_rag(config, contrastive_vlm_pack, line, client, logger,
                         selected_captions.append(res.page_content)
 
             if len(selected_captions) > 0:
+                logger.info("<path>Slow-CRSD</path>")
                 visual_cue_candidates_dict = dict()
                 for caption in selected_captions:
                     img_feat_selected_per_caption = []
@@ -531,6 +534,7 @@ def inference_internvl(config, questions, ans_file_path, generative_vlm_pack, cl
 
             line["visual_cue"] = line["gt_toi"]
             predict_bbox = line["visual_cue"]
+            predict_bbox = enlarge_roibox(predict_bbox, config.get("detection_gt_enlarge_factor", 1.0))
             predict_bbox = [int(predict_bbox[0]) / w * 1000, int(predict_bbox[1]) / h * 1000, int(predict_bbox[2]) / w * 1000, int(predict_bbox[3]) / h * 1000]
 
             if predict_bbox:
@@ -603,6 +607,7 @@ def inference_internvl(config, questions, ans_file_path, generative_vlm_pack, cl
         pub11_vectorstore, pub11_vsd_label2imgname_dict, pub11_vsd_imgname2feat_dict = setup_pub11_vsd(config)
 
         for line in tqdm(questions):
+            print("\n\n\n")
             gc.collect()
             torch.cuda.empty_cache()
             image_path, visual_cues, visual_cues_similarity, question_with_test_template, query_keywords = image_rag(

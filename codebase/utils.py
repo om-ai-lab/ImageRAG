@@ -26,6 +26,29 @@ IMAGENET_MEAN = (0.485, 0.456, 0.406)
 IMAGENET_STD = (0.229, 0.224, 0.225)
 
 
+def enlarge_roibox(roi_box, enlarge_factor):
+    print("enlarge_factor: {}".format(enlarge_factor))
+    if enlarge_factor == 1:
+        return roi_box
+    else: 
+        gt_bbox = roi_box
+
+        x1, y1, x2, y2 = gt_bbox
+        center_x = (x1 + x2) / 2.0
+        center_y = (y1 + y2) / 2.0
+        width_bbox = x2 - x1
+        height_bbox = y2 - y1
+
+        new_width = width_bbox * enlarge_factor
+        new_height = height_bbox * enlarge_factor
+
+        new_x1 = center_x - new_width / 2.0
+        new_y1 = center_y - new_height / 2.0
+        new_x2 = center_x + new_width / 2.0
+        new_y2 = center_y + new_height / 2.0
+        return [new_x1, new_y1, new_x2, new_y2]
+
+
 def build_generative_vlm_transform(input_size):
     MEAN, STD = IMAGENET_MEAN, IMAGENET_STD
     transform = T.Compose([
