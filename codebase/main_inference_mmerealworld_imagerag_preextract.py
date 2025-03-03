@@ -294,7 +294,7 @@ def image_rag(config, contrastive_vlm_pack, line, client, logger,
                 visual_cue_candidates_dict[label] = img_feat_selected_per_cls
             reduced_visual_cue_per_cls = reduce_visual_cue_per_cls(visual_cue_candidates_dict, reduce_fn="mean", need_feat_normalize=True)
             visual_cue, visual_cue_similarity = select_visual_cue(vlm_image_feats, bbox_coordinate_list, reduced_visual_cue_per_cls, need_feat_normalize=True)
-            return image_path, visual_cue, visual_cue_similarity, question_with_test_template, query_keywords
+            return image_path, visual_cue, visual_cue_similarity, question_with_test_template, query_keywords, imagerag_summary
         else:
             logger.info("No label text pass the threshold. Cannot find label that match the keywords from query. Try Pub11 VSD.")
             # pub11_vectorstore, pub11_label2imgname_dict, pub11_imgname2feat_dict,
@@ -328,7 +328,7 @@ def image_rag(config, contrastive_vlm_pack, line, client, logger,
                 reduced_visual_cue_per_cls = reduce_visual_cue_per_cls(visual_cue_candidates_dict, reduce_fn="mean", need_feat_normalize=True)
                 visual_cue, visual_cue_similarity = select_visual_cue(vlm_image_feats, bbox_coordinate_list, reduced_visual_cue_per_cls, need_feat_normalize=True)
                 print(visual_cue, visual_cue_similarity)
-                return image_path, visual_cue, visual_cue_similarity, question_with_test_template, query_keywords
+                return image_path, visual_cue, visual_cue_similarity, question_with_test_template, query_keywords, imagerag_summary
             else:
                 # w, h = original_image.size
                 # visual_cue = [[0, 0, w, h]]
@@ -337,12 +337,12 @@ def image_rag(config, contrastive_vlm_pack, line, client, logger,
                 # visual_cue_similarity = []
                 logger.info("No caption text pass the threshold. Cannot find caption that match the keywords from query.")
                 imagerag_summary.append("Zero-shot")
-                return image_path, visual_cue, visual_cue_similarity, question_with_test_template, query_keywords
+                return image_path, visual_cue, visual_cue_similarity, question_with_test_template, query_keywords, imagerag_summary
     else:
         logger.info("<path>Fast</path>")
         imagerag_summary.append("Fast")
         print(visual_cue, visual_cue_similarity)
-        return image_path, visual_cue, visual_cue_similarity, question_with_test_template, query_keywords
+        return image_path, visual_cue, visual_cue_similarity, question_with_test_template, query_keywords, imagerag_summary
     
 
 
@@ -616,7 +616,7 @@ def inference_internvl(config, questions, ans_file_path, generative_vlm_pack, cl
             print("\n\n\n")
             gc.collect()
             torch.cuda.empty_cache()
-            image_path, visual_cues, visual_cues_similarity, question_with_test_template, query_keywords = image_rag(
+            image_path, visual_cues, visual_cues_similarity, question_with_test_template, query_keywords, imagerag_summary = image_rag(
                 config, contrastive_vlm_pack, line, client, logger,
                 lrsd_vectorstore, lrsd_vsd_label2imgname_dict, lrsd_vsd_imgname2feat_dict,
                 pub11_vectorstore, pub11_vsd_label2imgname_dict, pub11_vsd_imgname2feat_dict,
@@ -674,7 +674,8 @@ def inference_internvl(config, questions, ans_file_path, generative_vlm_pack, cl
                 line["visual_cue"] = normalized_visual_cues
                 line["visual_cue_confidence"] = visual_cues_similarity
                 line["target_of_interest"] = query_keywords
-
+                line["imagerag_summary"] = imagerag_summary
+                
                 print(pixel_values.shape)
                 print(tile_num_list)
                 with torch.inference_mode():
