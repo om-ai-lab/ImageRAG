@@ -20,6 +20,8 @@ from torchvision.transforms.functional import InterpolationMode
 from transformers import AutoModel, AutoTokenizer
 from langchain.vectorstores import Chroma, FAISS
 from langchain_huggingface import HuggingFaceEmbeddings
+from codebase.llm_template import clip_text_template, georsclip_text_template
+from sklearn.cluster import DBSCAN
 
 
 IMAGENET_MEAN = (0.485, 0.456, 0.406)
@@ -209,32 +211,66 @@ def extract_vlm_img_text_feat(query, key_text, coordinate_patchname_dict, patch_
                 open(visfeat_saving_path, "wb")
             )
 
-    # text_content = [text_tokenizer(query)] + [text_tokenizer(f"a photo of the {c}") for c in key_text]
-    # text_content = [text_tokenizer(f"a photo of the {c}") for c in key_text]
-    # text_content = [text_tokenizer(query)]
+    # prompt = "a photo contains "
+    
+    # if len(key_text) == 1:
+    #     prompt += "{}".format(key_text[0])
+    #     text_content = [text_tokenizer(prompt)]
 
-    prompt = "a photo contains "
+    # elif len(key_text) > 1:
+    #     for c in key_text:
+    #         # c = c.replace("the ", "")
+    #         if c != key_text[-1]:
+    #             prompt += "{}, ".format(c)
+    #         else:
+    #             prompt += "and {}.".format(c)
+    #     text_content = [text_tokenizer(prompt)] + [text_tokenizer(f"a photo of the {c}") for c in key_text]
+    # else:
+    #     print("No keyword detected, exiting...")
+    #     exit()
+    # print(prompt)
+    
+    
+    if fastvlm_encoder_name == "clip":
+        templates = clip_text_template
+    elif fastvlm_encoder_name == "remoteclip" or fastvlm_encoder_name == "georsclip":
+        templates = georsclip_text_template
     if len(key_text) == 1:
-        prompt += "{}".format(key_text[0])
-        text_content = [text_tokenizer(prompt)]
-
+        # pdb.set_trace()
+        texts = [template.replace('{}', key_text[0]) for template in templates]
+        text_content = [text_tokenizer(texts, context_length=77).to(device)]
+    
     elif len(key_text) > 1:
-        for c in key_text:
-            # c = c.replace("the ", "")
-            if c != key_text[-1]:
-                prompt += "{}, ".format(c)
+        # pdb.set_trace()
+        all_keyphrase_text = []
+        temp_prompt = ""
+        for i, c in enumerate(key_text):
+            texts = [template.replace('{}', key_text[i]) for template in templates]
+            all_keyphrase_text.append(texts)
+            if i != len(key_text) - 1:
+                if len(key_text) == 2:
+                    temp_prompt += "{} ".format(c)
+                else:
+                    temp_prompt += "{}, ".format(c)
             else:
-                prompt += "and {}.".format(c)
-        text_content = [text_tokenizer(prompt)] + [text_tokenizer(f"a photo of the {c}") for c in key_text]
+                temp_prompt += "and {}".format(c)
+        summary_texts = [template.replace('{}', temp_prompt) for template in templates]
+        all_keyphrase_text.append(summary_texts)
+        text_content = [text_tokenizer(keyphrase_text, context_length=77).to(device) for keyphrase_text in all_keyphrase_text]
+
     else:
         print("No keyword detected, exiting...")
         exit()
-    print(prompt)
-    # text_content = [text_tokenizer(query)] + [text_tokenizer(prompt)]
-    text_inputs = torch.cat(text_content).to(device)
+    
+    text_features_list = []
     with torch.no_grad(), torch.cuda.amp.autocast():
-        text_features = fast_path_vlm.encode_text(text_inputs)
-
+        for text_input in text_content:
+            text_feature = fast_path_vlm.encode_text(text_input)
+            text_feature = text_feature.mean(dim=0)
+            # text_features = F.normalize(text_features, dim=-1)
+            # text_features /= text_features.norm()
+            text_features_list.append(text_feature.unsqueeze(0))
+    text_features = torch.cat(text_features_list)
     return image_features, text_features, bbox_coordinate_list
 
 
@@ -405,7 +441,7 @@ def convert_bboxes(obb1_bboxes):
     return obb2_bboxes
 
 
-def sole_visualcue2mergedvisualcue(obb1_bboxes):
+def sole_visualcue2mergedvisualcue(obb2_bboxes):
 
     # 初始化最小和最大坐标
     min_x = float('inf')
@@ -413,7 +449,7 @@ def sole_visualcue2mergedvisualcue(obb1_bboxes):
     max_x = float('-inf')
     max_y = float('-inf')
 
-    obb2_bboxes = convert_bboxes(obb1_bboxes)
+    # obb2_bboxes = convert_bboxes(obb1_bboxes)
 
     # 遍历所有边界框
     for bbox in obb2_bboxes:
@@ -433,7 +469,7 @@ def sole_visualcue2mergedvisualcue(obb1_bboxes):
     h = max_y - min_y
 
     # 返回包含所有边界框的大边界框
-    return min_x, min_y, max_x, max_y
+    return [min_x, min_y, max_x, max_y]
 
 
 def get_patch_scale_bbox(bbox, patch_scale, lower, upper):
@@ -673,7 +709,7 @@ def ranking_patch_visualcue2patch(bbox_coordinate_list, visualcue2patch_similari
     return selected_bbox_coordinate_list, candidate_similarity
 
 
-def reduce_visual_cue_per_cls(visual_cue_candidates_dict, reduce_fn, need_feat_normalize):
+def reduce_visual_cue_per_cls(visual_cue_candidates_dict, vlm_text_feats, reduce_fn, need_feat_normalize):
     reduced_visual_cue_candidates_dict = dict()
     if reduce_fn == "mean":
         for class_label in tqdm(visual_cue_candidates_dict):
@@ -681,6 +717,31 @@ def reduce_visual_cue_per_cls(visual_cue_candidates_dict, reduce_fn, need_feat_n
             if need_feat_normalize:
                 vsd_cues_feats /= vsd_cues_feats.norm(dim=-1, keepdim=True)
             reduced_visual_cue_candidates_dict[class_label] = vsd_cues_feats.mean(0)
+            
+            
+    elif reduce_fn == "cluster":
+        for class_label in tqdm(visual_cue_candidates_dict):
+            vsd_cues_feats = visual_cue_candidates_dict[class_label]
+            if need_feat_normalize:
+                vsd_cues_feats = vsd_cues_feats / vsd_cues_feats.norm(dim=-1, keepdim=True)
+            feats_np = vsd_cues_feats.cpu().numpy()  # 形状: (N, d)
+            clustering = DBSCAN(eps=0.3, min_samples=2).fit(feats_np)
+            labels = clustering.labels_
+            # 排除-1噪声
+            valid_indices = labels != -1
+            if valid_indices.sum() == 0:
+                reduced_visual_cue_candidates_dict[class_label] = vsd_cues_feats.mean(0)
+            else:
+                # 选择最大簇
+                valid_labels = labels[valid_indices]
+                unique_labels, counts = np.unique(valid_labels, return_counts=True)
+                largest_cluster = unique_labels[np.argmax(counts)]
+                indices = np.where(labels == largest_cluster)[0]
+                # 计算簇中心向量均值
+                cluster_center = vsd_cues_feats[indices].mean(0)
+                cluster_center = torch.from_array(cluster_center)
+                reduced_visual_cue_candidates_dict[class_label] = cluster_center
+                
     return reduced_visual_cue_candidates_dict
 
 
@@ -758,7 +819,7 @@ def setup_pub11_vsd(config):
     text_embeddings = HuggingFaceEmbeddings(model_name=slow_text_emb_model_path)
 
     vsd_wd_flag = False
-    vs_work_dir = os.path.join(config["work_dir"], config["vector_database"]["lrsd_vector_database_dir"])
+    vs_work_dir = os.path.join(config["work_dir"], config["vector_database"]["crsd_vector_database_dir"])
     if os.path.exists(vs_work_dir):
         vsd_wd_flag = True
 
@@ -783,7 +844,7 @@ def setup_pub11_vsd(config):
         imgname2feat_dict[img_name] = feat
 
     vectorstore = Chroma(
-        collection_name="lrsd_vector_store4keyphrase_label_matching",
+        collection_name="crsd_vector_store4keyphrase_label_matching",
         embedding_function=text_embeddings,
         persist_directory=vs_work_dir,
         # Where to save data locally, remove if not necessary

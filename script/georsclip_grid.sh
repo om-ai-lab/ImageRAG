@@ -1,0 +1,29 @@
+#!/bin/bash
+
+# 定义参数范围和步长
+start_path_T=0.1
+end_path_T=0.9
+increment_path_T=0.2
+
+start_rsd_T=0.1
+end_rsd_T=0.7
+increment_rsd_T=0.2
+
+start_crsd_T=0.1
+end_crsd_T=0.7
+increment_crsd_T=0.2
+
+# 循环生成所有可能的参数组合
+for path_T in $(seq $start_path_T $increment_path_T $end_path_T); do
+    for rsd_T in $(seq $start_rsd_T $increment_rsd_T $end_rsd_T); do
+        for crsd_T in $(seq $start_crsd_T $increment_crsd_T $end_crsd_T); do
+            # 构建完整的命令并运行
+            CUDA_VISIBLE_DEVICES=1 python codebase/main_inference_mmerealworld_imagerag_preextract.py \
+                --cfg_path /data1/zilun/ImageRAG0226/config/config_mmerealworldlite-imagerag-zoom4kvqa10k2epoch_grid_georsclip_server.yaml \
+                --path_T $path_T \
+                --lrsd_T $rsd_T \
+                --crsd_T $crsd_T
+            echo "Finished processing path_T=$path_T, rsd_T=$rsd_T, crsd_T=$crsd_T"
+        done
+    done
+done

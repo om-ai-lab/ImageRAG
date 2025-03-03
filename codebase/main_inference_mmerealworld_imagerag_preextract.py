@@ -27,7 +27,7 @@ import yaml
 import gc
 
 
-from codebase.llm_template import paraphrase_template, keyword_template, text_expansion_template
+from codebase.llm_template import paraphrase_template, keyword_template, text_expansion_template, clip_text_template, georsclip_text_template
 from codebase.utils import (setup_vlm_model, set_up_paraphrase_model, setup_vqallm, setup_slow_text_encoder_model,
                             calculate_similarity_matrix, extract_vlm_img_text_feat, ranking_patch_t2p,
                             paraphrase_model_inference, text_expand_model_inference, setup_logger, meta_df2clsimg_dict,
@@ -130,6 +130,7 @@ def image_rag(config, contrastive_vlm_pack, line, client, logger,
               pub11_vectorstore, pub11_label2imgname_dict, pub11_imgname2feat_dict,
               text_paraphrase, text_expand
               ):
+    
     imagerag_summary = []
     patch_saving_dir = os.path.join(config['work_dir'], config['patch_saving_dir'])
     fast_path_T = config['fast_path_T']
@@ -272,7 +273,7 @@ def image_rag(config, contrastive_vlm_pack, line, client, logger,
             for res, score in results:
                 # * [SIM=1.726390] The stock market is down 500 points today due to fears of a recession. [{'source': 'news'}] default l2
                 logger.info(f"Query:={expanded_query_text_dict[expanded_query_text]} * [SIM={score:3f}] {res.page_content}")
-                if score <= 0.5:
+                if score <= config["lrsd_T"]:
                     selected_label_names.append(res.page_content)
 
         if len(selected_label_names) > 0:
@@ -292,24 +293,26 @@ def image_rag(config, contrastive_vlm_pack, line, client, logger,
                     img_feat_selected_per_cls.append(feat)
                 img_feat_selected_per_cls = torch.cat(img_feat_selected_per_cls)
                 visual_cue_candidates_dict[label] = img_feat_selected_per_cls
-            reduced_visual_cue_per_cls = reduce_visual_cue_per_cls(visual_cue_candidates_dict, reduce_fn="mean", need_feat_normalize=True)
+            reduced_visual_cue_per_cls = reduce_visual_cue_per_cls(visual_cue_candidates_dict, vlm_text_feats, reduce_fn="mean", need_feat_normalize=True)
             visual_cue, visual_cue_similarity = select_visual_cue(vlm_image_feats, bbox_coordinate_list, reduced_visual_cue_per_cls, need_feat_normalize=True)
             return image_path, visual_cue, visual_cue_similarity, question_with_test_template, query_keywords, imagerag_summary
         else:
             logger.info("No label text pass the threshold. Cannot find label that match the keywords from query. Try Pub11 VSD.")
             # pub11_vectorstore, pub11_label2imgname_dict, pub11_imgname2feat_dict,
             selected_captions = []
+            
             for expanded_query_text in expanded_query_text_dict:
                 # expanded_query_text_sentence = "A photo of {}".format(expanded_query_text)
                 expanded_query_text_sentence = expanded_query_text
                 results = pub11_vectorstore.similarity_search_with_score(
                     expanded_query_text_sentence, k=3
                 )
+                # pdb.set_trace()
                 for res, score in results:
                     # * [SIM=1.726390] The stock market is down 500 points today due to fears of a recession. [{'source': 'news'}] default l2
                     logger.info(
                         f"Query:={expanded_query_text_dict[expanded_query_text]} * [SIM={score:3f}] {res.page_content}")
-                    if score <= 0.5:
+                    if score <= config["crsd_T"]:
                         selected_captions.append(res.page_content)
 
             if len(selected_captions) > 0:
@@ -625,6 +628,12 @@ def inference_internvl(config, questions, ans_file_path, generative_vlm_pack, cl
 
             
             if len(visual_cues) > 0:
+                # pdb.set_trace()
+                if len(visual_cues) > 1:
+                    union_visual_cue = sole_visualcue2mergedvisualcue(visual_cues)
+                    union_visual_cue_conf = float(np.array(visual_cues_similarity).mean())
+                    visual_cues = np.append(visual_cues, [np.array(union_visual_cue)], axis=0)
+                    visual_cues_similarity.append(union_visual_cue_conf)
                 images, tile_num_list = [], []
                 global_and_locals = []
                 num_patches_list = []
@@ -675,7 +684,12 @@ def inference_internvl(config, questions, ans_file_path, generative_vlm_pack, cl
                 line["visual_cue_confidence"] = visual_cues_similarity
                 line["target_of_interest"] = query_keywords
                 line["imagerag_summary"] = imagerag_summary
-                
+                line["path_T"] = config["fast_path_T"]
+                line["lrsd_T"] = config["lrsd_T"]
+                line["crsd_T"] = config["crsd_T"]
+                line["patch_method"] = config["patch_method"]
+                line["fast_vlm_model_name"] = config["fast_vlm_model"]["model_name"]
+
                 print(pixel_values.shape)
                 print(tile_num_list)
                 with torch.inference_mode():
@@ -692,8 +706,8 @@ def inference_internvl(config, questions, ans_file_path, generative_vlm_pack, cl
                 image = Image.open(image_path).convert('RGB')
                 image = generative_vlm_dynamic_preprocess(
                             image,
-                            # max_num=generative_vlm.config.max_dynamic_patch,
-                            max_num=6,
+                            max_num=generative_vlm.config.max_dynamic_patch,
+                            # max_num=6,
                             image_size=generative_vlm.config.vision_config.image_size,
                             use_thumbnail=False,
                         )
@@ -715,6 +729,10 @@ def inference_internvl(config, questions, ans_file_path, generative_vlm_pack, cl
                 line["visual_cue"] = []
                 line["visual_cue_confidence"] = []
                 line["target_of_interest"] = query_keywords
+                line["imagerag_summary"] = imagerag_summary
+                line["path_T"] = config["fast_path_T"]
+                line["lrsd_T"] = config["lrsd_T"]
+                line["crsd_T"] = config["crsd_T"]
 
             logger.info(f'Prompt: {question_with_test_template}\n\n GT: {line["Ground truth"]} \n Output: {response}')
             line['output'] = response
@@ -741,12 +759,21 @@ def inference():
                         # default='http://127.0.0.1:30000/v1', 
                         default='http://192.168.0.251:30000/v1',
                         help='base url')
+    parser.add_argument('--path_T', type=float, default=0.5, help='threshold for fast or slow path (cosine sim)')
+    parser.add_argument('--lrsd_T', type=float, default=0.7, help='threshold for using LRSD (distance)')
+    parser.add_argument('--crsd_T', type=float, default=0.7, help='threshold for CRSD (distance)')
+
 
     args = parser.parse_args()
     os.makedirs(args.log_dir, exist_ok=True)
     logger = setup_logger(os.path.join(args.log_dir, "log.txt"))
 
     config = load_yaml(args.cfg_path)
+    config["fast_path_T"] = args.path_T
+    config["lrsd_T"] = args.lrsd_T
+    config["crsd_T"] = args.crsd_T
+
+    
     patch_saving_dir = config['patch_saving_dir']
     os.makedirs(patch_saving_dir, exist_ok=True)
     device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -769,6 +796,17 @@ def inference():
         questions = json.load(file)
     questions = [question for question in questions if question["Subtask"] == "Remote Sensing"]
     questions = get_chunk(questions, config['num_chunks'], config['chunk_idx'])
+    
+    result_filename = "mmerealworldlite_zoom4kvqa10k_imagerag_{}_{}_{}_{}_{}.jsonl".format(
+        config["patch_method"], 
+        config["fast_vlm_model"]["model_name"], 
+        config["fast_path_T"], 
+        config["lrsd_T"],
+        config["crsd_T"]
+    )
+    result_filepath = os.path.join(config['work_dir'], "data", "eval", result_filename)
+    config["answers_file_path"] = result_filepath
+    print("Save to {}".format(config["answers_file_path"]))
     answers_file = os.path.expanduser(config['answers_file_path'])
     os.makedirs(os.path.dirname(answers_file), exist_ok=True)
 
