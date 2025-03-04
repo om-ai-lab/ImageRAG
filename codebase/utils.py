@@ -236,12 +236,10 @@ def extract_vlm_img_text_feat(query, key_text, coordinate_patchname_dict, patch_
     elif fastvlm_encoder_name == "remoteclip" or fastvlm_encoder_name == "georsclip":
         templates = georsclip_text_template
     if len(key_text) == 1:
-        # pdb.set_trace()
         texts = [template.replace('{}', key_text[0]) for template in templates]
         text_content = [text_tokenizer(texts, context_length=77).to(device)]
     
     elif len(key_text) > 1:
-        # pdb.set_trace()
         all_keyphrase_text = []
         temp_prompt = ""
         for i, c in enumerate(key_text):
@@ -690,6 +688,7 @@ def ranking_patch_visualcue2patch(bbox_coordinate_list, visualcue2patch_similari
 
     index_select = list(select_index_similarity_dict.keys())
     similarity_select = list(select_index_similarity_dict.values())
+    print("Frequency selection: {}".format(similarity_select))
 
     top1patch_value_per_keyphrase = values[:, :1].flatten().tolist()
     top1patch_index_per_keyphrase = index[:, :1].flatten().tolist()
@@ -701,6 +700,7 @@ def ranking_patch_visualcue2patch(bbox_coordinate_list, visualcue2patch_similari
         if top1_index not in top_k_element_index:
             select_top1_value_list.append(top1patch_value_per_keyphrase[i])
             select_top1_index_list.append(top1_index)
+    print("Rank1 selection: {}".format(select_top1_value_list))
 
     candidate_index = index_select + select_top1_index_list
     candidate_similarity = similarity_select + select_top1_value_list
@@ -724,24 +724,28 @@ def reduce_visual_cue_per_cls(visual_cue_candidates_dict, vlm_text_feats, reduce
             vsd_cues_feats = visual_cue_candidates_dict[class_label]
             if need_feat_normalize:
                 vsd_cues_feats = vsd_cues_feats / vsd_cues_feats.norm(dim=-1, keepdim=True)
-            feats_np = vsd_cues_feats.cpu().numpy()  # 形状: (N, d)
-            clustering = DBSCAN(eps=0.3, min_samples=2).fit(feats_np)
-            labels = clustering.labels_
-            # 排除-1噪声
-            valid_indices = labels != -1
-            if valid_indices.sum() == 0:
-                reduced_visual_cue_candidates_dict[class_label] = vsd_cues_feats.mean(0)
-            else:
-                # 选择最大簇
-                valid_labels = labels[valid_indices]
-                unique_labels, counts = np.unique(valid_labels, return_counts=True)
-                largest_cluster = unique_labels[np.argmax(counts)]
-                indices = np.where(labels == largest_cluster)[0]
-                # 计算簇中心向量均值
-                cluster_center = vsd_cues_feats[indices].mean(0)
-                cluster_center = torch.from_array(cluster_center)
-                reduced_visual_cue_candidates_dict[class_label] = cluster_center
                 
+            if len(vsd_cues_feats) > 1:
+                pdb.set_trace()
+                feats_np = vsd_cues_feats.cpu().numpy()  # 形状: (N, d)
+                clustering = DBSCAN(eps=0.3, min_samples=2).fit(feats_np)
+                labels = clustering.labels_
+                # 排除-1噪声
+                valid_indices = labels != -1
+                if valid_indices.sum() == 0:
+                    reduced_visual_cue_candidates_dict[class_label] = vsd_cues_feats.mean(0)
+                else:
+                    # 选择最大簇
+                    valid_labels = labels[valid_indices]
+                    unique_labels, counts = np.unique(valid_labels, return_counts=True)
+                    largest_cluster = unique_labels[np.argmax(counts)]
+                    indices = np.where(labels == largest_cluster)[0]
+                    # 计算簇中心向量均值
+                    cluster_center = vsd_cues_feats[indices].mean(0)
+                    cluster_center = torch.from_array(cluster_center)
+                    reduced_visual_cue_candidates_dict[class_label] = cluster_center
+            else:
+                reduced_visual_cue_candidates_dict[class_label] = vsd_cues_feats.mean(0)
     return reduced_visual_cue_candidates_dict
 
 
@@ -762,8 +766,8 @@ def select_visual_cue(vlm_image_feats, bbox_coordinate_list, visual_cue_candidat
     visual_cue_candidates_stacked = torch.cat(visual_cue_candidates_stacked)
     visual_cue_feats = visual_cue_candidates_stacked
     visualcue2patch_similarity = (patch_feats @ visual_cue_feats.t()).t()
-    visual_cues = ranking_patch_visualcue2patch(bbox_coordinate_list, visualcue2patch_similarity, top_k=2)
-    return visual_cues
+    visual_cues,  visual_cues_similarity = ranking_patch_visualcue2patch(bbox_coordinate_list, visualcue2patch_similarity, top_k=2)
+    return visual_cues, visual_cues_similarity
 
 
 def setup_lrsd_vsd(config):

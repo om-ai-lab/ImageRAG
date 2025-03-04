@@ -227,14 +227,12 @@ def image_rag(config, contrastive_vlm_pack, line, client, logger,
 
     t2p_similarity = calculate_similarity_matrix(vlm_image_feats, vlm_text_feats, fast_path_vlm.logit_scale.exp())
     # visual_cue (topn, 4) -> [[x1, y1, x2, y2], ...]
-    # pdb.set_trace()
     visual_cue, visual_cue_similarity = ranking_patch_t2p(bbox_coordinate_list, t2p_similarity, top_k=2)
     logger.info("Ranked Patch Shape: {}".format(visual_cue.shape))
     logger.info("visual_cue similarity: {}".format(visual_cue_similarity))
 
     visual_cue, visual_cue_similarity = filter_visual_cue_basedon_T(visual_cue, visual_cue_similarity, fast_path_T)
     
-    # pdb.set_trace()
     # Slow Path
     if len(visual_cue) == 0:
         logger.info("fast path similarity does not meet the threshold {}, choose the slow path".format(fast_path_T))
@@ -293,7 +291,7 @@ def image_rag(config, contrastive_vlm_pack, line, client, logger,
                     img_feat_selected_per_cls.append(feat)
                 img_feat_selected_per_cls = torch.cat(img_feat_selected_per_cls)
                 visual_cue_candidates_dict[label] = img_feat_selected_per_cls
-            reduced_visual_cue_per_cls = reduce_visual_cue_per_cls(visual_cue_candidates_dict, vlm_text_feats, reduce_fn="mean", need_feat_normalize=True)
+            reduced_visual_cue_per_cls = reduce_visual_cue_per_cls(visual_cue_candidates_dict, vlm_text_feats, reduce_fn=config["reduce_fn"], need_feat_normalize=True)
             visual_cue, visual_cue_similarity = select_visual_cue(vlm_image_feats, bbox_coordinate_list, reduced_visual_cue_per_cls, need_feat_normalize=True)
             return image_path, visual_cue, visual_cue_similarity, question_with_test_template, query_keywords, imagerag_summary
         else:
@@ -307,7 +305,6 @@ def image_rag(config, contrastive_vlm_pack, line, client, logger,
                 results = pub11_vectorstore.similarity_search_with_score(
                     expanded_query_text_sentence, k=3
                 )
-                # pdb.set_trace()
                 for res, score in results:
                     # * [SIM=1.726390] The stock market is down 500 points today due to fears of a recession. [{'source': 'news'}] default l2
                     logger.info(
@@ -328,7 +325,7 @@ def image_rag(config, contrastive_vlm_pack, line, client, logger,
                     img_feat_selected_per_caption = torch.cat(img_feat_selected_per_caption)
                     visual_cue_candidates_dict[caption] = img_feat_selected_per_caption
 
-                reduced_visual_cue_per_cls = reduce_visual_cue_per_cls(visual_cue_candidates_dict, vlm_text_feats, reduce_fn="mean", need_feat_normalize=True)
+                reduced_visual_cue_per_cls = reduce_visual_cue_per_cls(visual_cue_candidates_dict, vlm_text_feats, reduce_fn=config["reduce_fn"], need_feat_normalize=True)
                 visual_cue, visual_cue_similarity = select_visual_cue(vlm_image_feats, bbox_coordinate_list, reduced_visual_cue_per_cls, need_feat_normalize=True)
                 print(visual_cue, visual_cue_similarity)
                 return image_path, visual_cue, visual_cue_similarity, question_with_test_template, query_keywords, imagerag_summary
@@ -628,7 +625,6 @@ def inference_internvl(config, questions, ans_file_path, generative_vlm_pack, cl
 
             
             if len(visual_cues) > 0:
-                # pdb.set_trace()
                 if len(visual_cues) > 1:
                     union_visual_cue = sole_visualcue2mergedvisualcue(visual_cues)
                     union_visual_cue_conf = float(np.array(visual_cues_similarity).mean())
@@ -762,13 +758,14 @@ def inference():
     parser.add_argument('--path_T', type=float, default=0.5, help='threshold for fast or slow path (cosine sim)')
     parser.add_argument('--lrsd_T', type=float, default=0.7, help='threshold for using LRSD (distance)')
     parser.add_argument('--crsd_T', type=float, default=0.7, help='threshold for CRSD (distance)')
-
+    parser.add_argument('--reduce_fn', type=str, default="mean", help='mean, cluster or rerank')
 
     args = parser.parse_args()
     os.makedirs(args.log_dir, exist_ok=True)
     logger = setup_logger(os.path.join(args.log_dir, "log.txt"))
 
     config = load_yaml(args.cfg_path)
+    config["reduce_fn"] = args.reduce_fn
     config["fast_path_T"] = args.path_T
     config["lrsd_T"] = args.lrsd_T
     config["crsd_T"] = args.crsd_T
