@@ -328,7 +328,7 @@ def image_rag(config, contrastive_vlm_pack, line, client, logger,
                     img_feat_selected_per_caption = torch.cat(img_feat_selected_per_caption)
                     visual_cue_candidates_dict[caption] = img_feat_selected_per_caption
 
-                reduced_visual_cue_per_cls = reduce_visual_cue_per_cls(visual_cue_candidates_dict, reduce_fn="mean", need_feat_normalize=True)
+                reduced_visual_cue_per_cls = reduce_visual_cue_per_cls(visual_cue_candidates_dict, vlm_text_feats, reduce_fn="mean", need_feat_normalize=True)
                 visual_cue, visual_cue_similarity = select_visual_cue(vlm_image_feats, bbox_coordinate_list, reduced_visual_cue_per_cls, need_feat_normalize=True)
                 print(visual_cue, visual_cue_similarity)
                 return image_path, visual_cue, visual_cue_similarity, question_with_test_template, query_keywords, imagerag_summary
