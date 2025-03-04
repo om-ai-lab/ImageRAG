@@ -235,12 +235,15 @@ def extract_vlm_img_text_feat(query, key_text, coordinate_patchname_dict, patch_
         templates = clip_text_template
     elif fastvlm_encoder_name == "remoteclip" or fastvlm_encoder_name == "georsclip":
         templates = georsclip_text_template
+        
     if len(key_text) == 1:
+        all_keyphrase_text_without_prompt = [key_text[0]]
         texts = [template.replace('{}', key_text[0]) for template in templates]
         text_content = [text_tokenizer(texts, context_length=77).to(device)]
     
     elif len(key_text) > 1:
         all_keyphrase_text = []
+        all_keyphrase_text_without_prompt = []
         temp_prompt = ""
         for i, c in enumerate(key_text):
             texts = [template.replace('{}', key_text[i]) for template in templates]
@@ -252,6 +255,8 @@ def extract_vlm_img_text_feat(query, key_text, coordinate_patchname_dict, patch_
                     temp_prompt += "{}, ".format(c)
             else:
                 temp_prompt += "and {}".format(c)
+        # pdb.set_trace()
+        all_keyphrase_text_without_prompt = key_text + [temp_prompt]
         summary_texts = [template.replace('{}', temp_prompt) for template in templates]
         all_keyphrase_text.append(summary_texts)
         text_content = [text_tokenizer(keyphrase_text, context_length=77).to(device) for keyphrase_text in all_keyphrase_text]
@@ -269,7 +274,8 @@ def extract_vlm_img_text_feat(query, key_text, coordinate_patchname_dict, patch_
             # text_features /= text_features.norm()
             text_features_list.append(text_feature.unsqueeze(0))
     text_features = torch.cat(text_features_list)
-    return image_features, text_features, bbox_coordinate_list
+    keyword_feat_map = dict(zip(all_keyphrase_text_without_prompt, text_features_list))
+    return image_features, text_features, keyword_feat_map, bbox_coordinate_list
 
 
 def set_up_paraphrase_model(model_path, device):
@@ -317,7 +323,7 @@ def setup_vlm_model(model_path, fast_vlm_model_name, device):
 
     elif fast_vlm_model_name == "remoteclip":
         model, _, img_preprocess = open_clip.create_model_and_transforms(
-            'ViT-L-14',
+            'ViT-L-14-quickgelu',
             pretrained='openai',
             precision="fp16"
         )
@@ -709,7 +715,7 @@ def ranking_patch_visualcue2patch(bbox_coordinate_list, visualcue2patch_similari
     return selected_bbox_coordinate_list, candidate_similarity
 
 
-def reduce_visual_cue_per_cls(visual_cue_candidates_dict, vlm_text_feats, reduce_fn, need_feat_normalize):
+def reduce_visual_cue_per_cls(visual_cue_candidates_dict, keyword_feat_map, fast_path_vlm, reverse_map, reduce_fn, need_feat_normalize):
     reduced_visual_cue_candidates_dict = dict()
     if reduce_fn == "mean":
         for class_label in tqdm(visual_cue_candidates_dict):
@@ -726,7 +732,7 @@ def reduce_visual_cue_per_cls(visual_cue_candidates_dict, vlm_text_feats, reduce
                 vsd_cues_feats = vsd_cues_feats / vsd_cues_feats.norm(dim=-1, keepdim=True)
                 
             if len(vsd_cues_feats) > 1:
-                pdb.set_trace()
+                # pdb.set_trace()
                 feats_np = vsd_cues_feats.cpu().numpy()  # 形状: (N, d)
                 clustering = DBSCAN(eps=0.3, min_samples=2).fit(feats_np)
                 labels = clustering.labels_
@@ -742,14 +748,32 @@ def reduce_visual_cue_per_cls(visual_cue_candidates_dict, vlm_text_feats, reduce
                     indices = np.where(labels == largest_cluster)[0]
                     # 计算簇中心向量均值
                     cluster_center = vsd_cues_feats[indices].mean(0)
-                    cluster_center = torch.from_array(cluster_center)
+                    # cluster_center = torch.from_numpy(cluster_center)
                     reduced_visual_cue_candidates_dict[class_label] = cluster_center
             else:
                 reduced_visual_cue_candidates_dict[class_label] = vsd_cues_feats.mean(0)
+                
+    elif reduce_fn == "rerank":
+        for class_label in tqdm(visual_cue_candidates_dict):
+            original_keyphrase = reverse_map[class_label]
+            text_feat = keyword_feat_map[original_keyphrase]
+            vsd_cues_feats = visual_cue_candidates_dict[class_label]
+            if len(vsd_cues_feats) > 1:
+                # pdb.set_trace()
+                t2p_similarity = calculate_similarity_matrix(vsd_cues_feats, text_feat, fast_path_vlm.logit_scale.exp())
+                topn = min(3, t2p_similarity.shape[1])
+                values, top_indices = t2p_similarity.topk(topn)
+                # top_indices = torch.topk(t2p_similarity, topk).indices
+                select_feature = vsd_cues_feats[top_indices].squeeze(0)
+                aggregated_feature = select_feature.mean(dim=0)
+                reduced_visual_cue_candidates_dict[class_label] = aggregated_feature
+            else:
+                reduced_visual_cue_candidates_dict[class_label] = vsd_cues_feats.mean(0)
+            
     return reduced_visual_cue_candidates_dict
 
 
-def select_visual_cue(vlm_image_feats, bbox_coordinate_list, visual_cue_candidates_dict, need_feat_normalize):
+def select_visual_cue(vlm_image_feats, bbox_coordinate_list, visual_cue_candidates_dict, logit_scale_exp, need_feat_normalize):
     # (166, 512)
     """
     vlm_image_feats: patch feats for single image
@@ -760,12 +784,14 @@ def select_visual_cue(vlm_image_feats, bbox_coordinate_list, visual_cue_candidat
         vlm_image_feats /= vlm_image_feats.norm(dim=-1, keepdim=True)
     patch_feats = vlm_image_feats.detach().cpu().type(torch.float32)
     # (3, 512)
+    logit_scale_exp = logit_scale_exp.detach().cpu()
     visual_cue_candidates_stacked = []
     for visual_cue_candidates in visual_cue_candidates_dict:
         visual_cue_candidates_stacked.append(visual_cue_candidates_dict[visual_cue_candidates].detach().cpu().type(torch.float32).unsqueeze(0))
     visual_cue_candidates_stacked = torch.cat(visual_cue_candidates_stacked)
     visual_cue_feats = visual_cue_candidates_stacked
-    visualcue2patch_similarity = (patch_feats @ visual_cue_feats.t()).t()
+    visualcue2patch_similarity = (logit_scale_exp * patch_feats @ visual_cue_feats.t()).t().softmax(dim=-1)
+    # pdb.set_trace()
     visual_cues,  visual_cues_similarity = ranking_patch_visualcue2patch(bbox_coordinate_list, visualcue2patch_similarity, top_k=2)
     return visual_cues, visual_cues_similarity
 

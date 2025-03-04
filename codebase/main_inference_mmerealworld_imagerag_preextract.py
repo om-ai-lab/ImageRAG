@@ -212,7 +212,7 @@ def image_rag(config, contrastive_vlm_pack, line, client, logger,
     # fast_path_vlm_name = os.path.splitext(os.path.basename(config["fast_vlm_model"]["model_path"]))[0]
     fast_path_vlm_name = config["fast_vlm_model"]["model_name"]
     # Fast Path
-    vlm_image_feats, vlm_text_feats, bbox_coordinate_list = extract_vlm_img_text_feat(
+    vlm_image_feats, vlm_text_feats, keyword_feat_map, bbox_coordinate_list = extract_vlm_img_text_feat(
         question,
         query_keywords,
         coordinate_patchname_dict,
@@ -228,11 +228,8 @@ def image_rag(config, contrastive_vlm_pack, line, client, logger,
     t2p_similarity = calculate_similarity_matrix(vlm_image_feats, vlm_text_feats, fast_path_vlm.logit_scale.exp())
     # visual_cue (topn, 4) -> [[x1, y1, x2, y2], ...]
     visual_cue, visual_cue_similarity = ranking_patch_t2p(bbox_coordinate_list, t2p_similarity, top_k=2)
-    logger.info("Ranked Patch Shape: {}".format(visual_cue.shape))
-    logger.info("visual_cue similarity: {}".format(visual_cue_similarity))
-
     visual_cue, visual_cue_similarity = filter_visual_cue_basedon_T(visual_cue, visual_cue_similarity, fast_path_T)
-    
+
     # Slow Path
     if len(visual_cue) == 0:
         logger.info("fast path similarity does not meet the threshold {}, choose the slow path".format(fast_path_T))
@@ -263,6 +260,7 @@ def image_rag(config, contrastive_vlm_pack, line, client, logger,
         #     persist_directory=config["vector_database"]["mm_vector_database_dir"],
         #     collection_metadata = {"hnsw:space": "cosine"}
         # )
+        reverse_map = dict()
         selected_label_names = []
         for expanded_query_text in expanded_query_text_dict:
             results = lrsd_vectorstore.similarity_search_with_score(
@@ -273,6 +271,7 @@ def image_rag(config, contrastive_vlm_pack, line, client, logger,
                 logger.info(f"Query:={expanded_query_text_dict[expanded_query_text]} * [SIM={score:3f}] {res.page_content}")
                 if score <= config["lrsd_T"]:
                     selected_label_names.append(res.page_content)
+                    reverse_map[res.page_content] = expanded_query_text_dict[expanded_query_text]
 
         if len(selected_label_names) > 0:
             logger.info("<path>Slow-LRSD</path>")
@@ -291,12 +290,15 @@ def image_rag(config, contrastive_vlm_pack, line, client, logger,
                     img_feat_selected_per_cls.append(feat)
                 img_feat_selected_per_cls = torch.cat(img_feat_selected_per_cls)
                 visual_cue_candidates_dict[label] = img_feat_selected_per_cls
-            reduced_visual_cue_per_cls = reduce_visual_cue_per_cls(visual_cue_candidates_dict, vlm_text_feats, reduce_fn=config["reduce_fn"], need_feat_normalize=True)
-            visual_cue, visual_cue_similarity = select_visual_cue(vlm_image_feats, bbox_coordinate_list, reduced_visual_cue_per_cls, need_feat_normalize=True)
+            # keyword_feat_map, fast_path_vlm,
+            # pdb.set_trace()
+            reduced_visual_cue_per_cls = reduce_visual_cue_per_cls(visual_cue_candidates_dict, keyword_feat_map, fast_path_vlm, reverse_map, reduce_fn=config["reduce_fn"], need_feat_normalize=True)
+            visual_cue, visual_cue_similarity = select_visual_cue(vlm_image_feats, bbox_coordinate_list, reduced_visual_cue_per_cls, fast_path_vlm.logit_scale.exp(), need_feat_normalize=True)
             return image_path, visual_cue, visual_cue_similarity, question_with_test_template, query_keywords, imagerag_summary
         else:
             logger.info("No label text pass the threshold. Cannot find label that match the keywords from query. Try Pub11 VSD.")
             # pub11_vectorstore, pub11_label2imgname_dict, pub11_imgname2feat_dict,
+            reverse_map = dict()
             selected_captions = []
             
             for expanded_query_text in expanded_query_text_dict:
@@ -311,7 +313,8 @@ def image_rag(config, contrastive_vlm_pack, line, client, logger,
                         f"Query:={expanded_query_text_dict[expanded_query_text]} * [SIM={score:3f}] {res.page_content}")
                     if score <= config["crsd_T"]:
                         selected_captions.append(res.page_content)
-
+                        reverse_map[res.page_content] = expanded_query_text_dict[expanded_query_text]
+                        
             if len(selected_captions) > 0:
                 logger.info("<path>Slow-CRSD</path>")
                 imagerag_summary.append("Slow-CRSD")
@@ -324,9 +327,9 @@ def image_rag(config, contrastive_vlm_pack, line, client, logger,
                         img_feat_selected_per_caption.append(feat)
                     img_feat_selected_per_caption = torch.cat(img_feat_selected_per_caption)
                     visual_cue_candidates_dict[caption] = img_feat_selected_per_caption
-
-                reduced_visual_cue_per_cls = reduce_visual_cue_per_cls(visual_cue_candidates_dict, vlm_text_feats, reduce_fn=config["reduce_fn"], need_feat_normalize=True)
-                visual_cue, visual_cue_similarity = select_visual_cue(vlm_image_feats, bbox_coordinate_list, reduced_visual_cue_per_cls, need_feat_normalize=True)
+                # pdb.set_trace()
+                reduced_visual_cue_per_cls = reduce_visual_cue_per_cls(visual_cue_candidates_dict, keyword_feat_map, fast_path_vlm, reverse_map, reduce_fn=config["reduce_fn"], need_feat_normalize=True)
+                visual_cue, visual_cue_similarity = select_visual_cue(vlm_image_feats, bbox_coordinate_list, reduced_visual_cue_per_cls, fast_path_vlm.logit_scale.exp(), need_feat_normalize=True)
                 print(visual_cue, visual_cue_similarity)
                 return image_path, visual_cue, visual_cue_similarity, question_with_test_template, query_keywords, imagerag_summary
             else:
@@ -341,7 +344,7 @@ def image_rag(config, contrastive_vlm_pack, line, client, logger,
     else:
         logger.info("<path>Fast</path>")
         imagerag_summary.append("Fast")
-        print(visual_cue, visual_cue_similarity)
+        # print(visual_cue, visual_cue_similarity)
         return image_path, visual_cue, visual_cue_similarity, question_with_test_template, query_keywords, imagerag_summary
     
 
@@ -611,25 +614,34 @@ def inference_internvl(config, questions, ans_file_path, generative_vlm_pack, cl
         contrastive_vlm_pack = setup_vlm_model(fast_vlm_model_path, fast_vlm_model_name, device)
         lrsd_vectorstore, lrsd_vsd_label2imgname_dict, lrsd_vsd_imgname2feat_dict = setup_lrsd_vsd(config)
         pub11_vectorstore, pub11_vsd_label2imgname_dict, pub11_vsd_imgname2feat_dict = setup_pub11_vsd(config)
-
+        
         for line in tqdm(questions):
             print("\n\n\n")
             gc.collect()
             torch.cuda.empty_cache()
+            question_type = line["Category"]
             image_path, visual_cues, visual_cues_similarity, question_with_test_template, query_keywords, imagerag_summary = image_rag(
                 config, contrastive_vlm_pack, line, client, logger,
                 lrsd_vectorstore, lrsd_vsd_label2imgname_dict, lrsd_vsd_imgname2feat_dict,
                 pub11_vectorstore, pub11_vsd_label2imgname_dict, pub11_vsd_imgname2feat_dict,
                 text_paraphrase=False, text_expand=False
             )
-
-            
+            visual_cues, visual_cues_similarity = filter_visual_cue_basedon_T(visual_cues, visual_cues_similarity, config['fast_path_T'])
+            # print(visual_cues)
+            # print(visual_cues_similarity)
+            logger.info("Ranked Visual Cues: {}".format(visual_cues))
+            logger.info("Visual Cues Similarity: {}".format(visual_cues_similarity))
             if len(visual_cues) > 0:
                 if len(visual_cues) > 1:
                     union_visual_cue = sole_visualcue2mergedvisualcue(visual_cues)
                     union_visual_cue_conf = float(np.array(visual_cues_similarity).mean())
-                    visual_cues = np.append(visual_cues, [np.array(union_visual_cue)], axis=0)
-                    visual_cues_similarity.append(union_visual_cue_conf)
+                    if question_type != "count":
+                        visual_cues = np.append(visual_cues, [np.array(union_visual_cue)], axis=0)
+                        visual_cues_similarity.append(union_visual_cue_conf)
+                    else:
+                        visual_cues = [union_visual_cue]
+                        visual_cues_similarity = [union_visual_cue_conf]
+
                 images, tile_num_list = [], []
                 global_and_locals = []
                 num_patches_list = []
@@ -794,12 +806,13 @@ def inference():
     questions = [question for question in questions if question["Subtask"] == "Remote Sensing"]
     questions = get_chunk(questions, config['num_chunks'], config['chunk_idx'])
     
-    result_filename = "mmerealworldlite_zoom4kvqa10k_imagerag_{}_{}_{}_{}_{}.jsonl".format(
+    result_filename = "mmerealworldlite_zoom4kvqa10k_imagerag_{}_{}_{}_{}_{}_{}.jsonl".format(
         config["patch_method"], 
         config["fast_vlm_model"]["model_name"], 
         config["fast_path_T"], 
         config["lrsd_T"],
-        config["crsd_T"]
+        config["crsd_T"],
+        config["reduce_fn"]
     )
     result_filepath = os.path.join(config['work_dir'], "data", "eval", result_filename)
     config["answers_file_path"] = result_filepath
