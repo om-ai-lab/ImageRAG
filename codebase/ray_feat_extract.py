@@ -107,7 +107,7 @@ def extract_image_feature(task_id, model_path, img_path_list, batch_size, num_gp
             # precision="fp16"
         )
         checkpoint = torch.load(model_path, map_location="cpu")
-        msg = model.load_state_dict(checkpoint)
+        msg = model.load_state_dict(checkpoint, strict=True)
         print(msg)
         model = model.to(device).eval()
         print("Load RemoteCLIP")
@@ -119,7 +119,7 @@ def extract_image_feature(task_id, model_path, img_path_list, batch_size, num_gp
             precision="fp16",
         )
         checkpoint = torch.load(model_path, map_location=device)
-        msg = model.load_state_dict(checkpoint)
+        msg = model.load_state_dict(checkpoint, strict=True)
         print(msg)
         model=model.to(device).eval()
         print("Load GeoRSCLIP")
@@ -133,6 +133,18 @@ def extract_image_feature(task_id, model_path, img_path_list, batch_size, num_gp
             precision="fp16",
         )
         model = model.to(device).eval()
+    
+    elif clip_encoder_name == "MCPICLIP":
+        model, _, img_preprocess = open_clip.create_model_and_transforms(
+            model_name='ViT-L-14-336-quickgelu',
+            pretrained='openai',
+            precision="fp16",
+        )
+        checkpoint = torch.load(model_path, map_location=device)
+        msg = model.load_state_dict(checkpoint, strict=True)
+        print(msg)
+        model=model.to(device).eval()
+        print("Load MCPICLIP")
 
     dataset = ImageFeatureExtractionDataset(img_path_list, img_preprocess)
     dataloader = DataLoader(dataset, batch_size=batch_size, num_workers=0)
@@ -277,18 +289,19 @@ def main_crsd():
 
     parser.add_argument('--batch_size', type=int, default=1000, help='batch size')
 
-    parser.add_argument('--encoder_name', type=str, default="CLIP", help='local mode or auto mode')
+    parser.add_argument('--encoder_name', type=str, default="MCPICLIP", help='local mode or auto mode')
 
     parser.add_argument('--dataset_img_dir', type=str,
-                        default="/data9/zilun/grsm/dataset",
+                        default="/data1/zilun/dataset/pub11/img",
                         help='dir of images needed to be extracted')
 
     parser.add_argument('--save_dir', type=str,
-                        default="/data1/zilun/dataset/pub11/img_feat/clip",
+                        default="/data1/zilun/dataset/pub11/img_feat/mcipclip",
                         help='dir of images needed to be extracted')
 
     parser.add_argument('--model_path', type=str,
-                        default="/data1/zilun/ImageRAG0226/checkpoint/RemoteCLIP/RemoteCLIP-ViT-L-14.pt",
+                        # default="/data1/zilun/ImageRAG0226/checkpoint/RemoteCLIP/RemoteCLIP-ViT-L-14.pt",
+                        default="/data1/zilun/ImageRAG0226/checkpoint/MCIP-ViT-L-14-336.pth",
                         help='model_path')
 
     parser.add_argument('--pub11_csv_train_path', type=str,
@@ -301,7 +314,7 @@ def main_crsd():
 
     args = parser.parse_args()
 
-    extract(args, modality="lrsd")
+    extract(args, modality="crsd")
     
     
 
@@ -324,7 +337,7 @@ def main_lrsd():
 
     parser.add_argument('--batch_size', type=int, default=1000, help='batch size')
 
-    parser.add_argument('--encoder_name', type=str, default="CLIP", help='local mode or auto mode')
+    parser.add_argument('--encoder_name', type=str, default="MCPICLIP", help='local mode or auto mode')
     
     
     parser.add_argument('--merged_pkl_path', type=str,
@@ -336,12 +349,13 @@ def main_lrsd():
                         help='dir of images needed to be extracted')
 
     parser.add_argument('--save_dir', type=str,
-                        default="/data1/zilun/dataset/lrsd/img_feat/clip",
+                        default="/data1/zilun/dataset/lrsd/img_feat/mcipclip",
                         help='dir of images needed to be extracted')
 
     parser.add_argument('--model_path', type=str,
                         # default="/data1/zilun/ImageRAG0226/checkpoint/RemoteCLIP/RemoteCLIP-ViT-L-14.pt",
-                        default="/data1/zilun/ImageRAG0226/checkpoint/RS5M_ViT-L-14-336.pt",
+                        # default="/data1/zilun/ImageRAG0226/checkpoint/RS5M_ViT-L-14-336.pt",
+                        default="/data1/zilun/ImageRAG0226/checkpoint/MCIP-ViT-L-14-336.pth",
                         help='model_path')
     
     
@@ -534,22 +548,23 @@ def merge_ray_feat_lrsd(merged_pkl_path, feat_dir, save_path):
 
 if __name__ == "__main__":
     # main_lrsd()
-    
-    new_vector_database_content = deduplicate_result_dict(
-        "/data1/zilun/ImageRAG0226/data/lrsd_georsclip_1M.pkl",
-        "/data1/zilun/ImageRAG0226/data/lrsd_georsclip_1M_dedup.pkl",
-        sentence_bert_path="/data1/zilun/ImageRAG0226/checkpoint/all-MiniLM-L6-v2"
-    )
-    
-    # merge_ray_feat(
+    # main_crsd()
+
+    # merge_ray_feat_crsd(
     #     "/data9/zilun/dataset/RS5M/pub11_train_metadata.csv",
     #     "/data9/zilun/dataset/RS5M/pub11_validation_metadata.csv",
-    #     "/data1/zilun/dataset/pub11/img_feat/remoteclip",
-    #     "/data1/zilun/ImageRAG0226/data/remoteclip_pub11feat_label_3M.pkl"
+    #     "/data1/zilun/dataset/pub11/img_feat/mcipclip",
+    #     "/data1/zilun/ImageRAG0226/data/crsd_mcipclip_3M.pkl"
     # )
     
     # merge_ray_feat_lrsd(
     #     "/data1/zilun/ImageRAG0226/data/new_merged_updated_millionaid.pkl",
-    #     "/data1/zilun/dataset/lrsd/img_feat/clip",
-    #     "/data1/zilun/ImageRAG0226/data/lrsd_clip_3M.pkl"
+    #     "/data1/zilun/dataset/lrsd/img_feat/mcipclip",
+    #     "/data1/zilun/ImageRAG0226/data/lrsd_mcipclip_1M_undedup.pkl"
     # )
+    
+    new_vector_database_content = deduplicate_result_dict(
+        "/data1/zilun/ImageRAG0226/data/lrsd_mcipclip_1M_undedup.pkl",
+        "/data1/zilun/ImageRAG0226/data/lrsd_mcipclip_1M.pkl",
+        sentence_bert_path="/data1/zilun/ImageRAG0226/checkpoint/all-MiniLM-L6-v2"
+    )

@@ -231,7 +231,7 @@ def extract_vlm_img_text_feat(query, key_text, coordinate_patchname_dict, patch_
     # print(prompt)
     
     
-    if fastvlm_encoder_name == "clip":
+    if fastvlm_encoder_name == "clip" or fastvlm_encoder_name == "mcipclip":
         templates = clip_text_template
     elif fastvlm_encoder_name == "remoteclip" or fastvlm_encoder_name == "georsclip":
         templates = georsclip_text_template
@@ -333,6 +333,19 @@ def setup_vlm_model(model_path, fast_vlm_model_name, device):
         print(msg)
         model = model.to(device).eval()
         print("Load RemoteCLIP")
+
+    elif fast_vlm_model_name == "mcipclip":
+        model, _, img_preprocess = open_clip.create_model_and_transforms(
+            model_name='ViT-L-14-336-quickgelu',
+            pretrained='openai',
+            precision="fp16",
+            device=device
+        )
+        tokenizer = open_clip.get_tokenizer(model_name='ViT-L-14-336-quickgelu')
+        checkpoint = torch.load(model_path, map_location=device)
+        msg = model.load_state_dict(checkpoint)
+        model.eval()  # model in train mode by default, impacts some models with BatchNorm or stochastic depth active
+        print("Load MCPICLIP")
 
     return model, img_preprocess, tokenizer
 
@@ -765,7 +778,7 @@ def reduce_visual_cue_per_cls(visual_cue_candidates_dict, keyword_feat_map, fast
                 values, top_indices = t2p_similarity.topk(topn)
                 # top_indices = torch.topk(t2p_similarity, topk).indices
                 select_feature = vsd_cues_feats[top_indices].squeeze(0)
-                aggregated_feature = select_feature.mean(dim=0)
+                aggregated_feature = select_feature.mean(0)
                 reduced_visual_cue_candidates_dict[class_label] = aggregated_feature
             else:
                 reduced_visual_cue_candidates_dict[class_label] = vsd_cues_feats.mean(0)

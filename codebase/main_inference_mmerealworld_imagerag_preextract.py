@@ -626,7 +626,10 @@ def inference_internvl(config, questions, ans_file_path, generative_vlm_pack, cl
                 pub11_vectorstore, pub11_vsd_label2imgname_dict, pub11_vsd_imgname2feat_dict,
                 text_paraphrase=False, text_expand=False
             )
-            visual_cues, visual_cues_similarity = filter_visual_cue_basedon_T(visual_cues, visual_cues_similarity, config['fast_path_T'])
+            visual_cues, visual_cues_similarity = filter_visual_cue_basedon_T(visual_cues, visual_cues_similarity, 
+                                                                            #   config['fast_path_T']
+                                                                            0
+                                                                              )
             # print(visual_cues)
             # print(visual_cues_similarity)
             logger.info("Ranked Visual Cues: {}".format(visual_cues))
@@ -710,6 +713,7 @@ def inference_internvl(config, questions, ans_file_path, generative_vlm_pack, cl
                         num_patches_list=tile_num_list
                     )
             else:
+                imagerag_summary.append("Zero-shot")
                 images, tile_num_list = [], []
                 image = Image.open(image_path).convert('RGB')
                 image = generative_vlm_dynamic_preprocess(
