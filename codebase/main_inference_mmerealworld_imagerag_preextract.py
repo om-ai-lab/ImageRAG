@@ -778,14 +778,12 @@ def inference():
 
     args = parser.parse_args()
     os.makedirs(args.log_dir, exist_ok=True)
-    logger = setup_logger(os.path.join(args.log_dir, "log.txt"))
 
     config = load_yaml(args.cfg_path)
     config["reduce_fn"] = args.reduce_fn
     config["fast_path_T"] = args.path_T
     config["lrsd_T"] = args.lrsd_T
     config["crsd_T"] = args.crsd_T
-
     
     patch_saving_dir = config['patch_saving_dir']
     os.makedirs(patch_saving_dir, exist_ok=True)
@@ -818,6 +816,9 @@ def inference():
         config["crsd_T"],
         config["reduce_fn"]
     )
+    
+    logger = setup_logger(os.path.join(args.log_dir, "log_{}.txt".format(result_filename.replace(".jsonl", ""))))
+    
     result_filepath = os.path.join(config['work_dir'], "data", "eval", result_filename)
     config["answers_file_path"] = result_filepath
     print("Save to {}".format(config["answers_file_path"]))

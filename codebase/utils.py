@@ -761,6 +761,8 @@ def reduce_visual_cue_per_cls(visual_cue_candidates_dict, keyword_feat_map, fast
                     indices = np.where(labels == largest_cluster)[0]
                     # 计算簇中心向量均值
                     cluster_center = vsd_cues_feats[indices].mean(0)
+                    if cluster_center is None:
+                        cluster_center = vsd_cues_feats.mean(0)
                     # cluster_center = torch.from_numpy(cluster_center)
                     reduced_visual_cue_candidates_dict[class_label] = cluster_center
             else:
@@ -800,7 +802,14 @@ def select_visual_cue(vlm_image_feats, bbox_coordinate_list, visual_cue_candidat
     logit_scale_exp = logit_scale_exp.detach().cpu()
     visual_cue_candidates_stacked = []
     for visual_cue_candidates in visual_cue_candidates_dict:
-        visual_cue_candidates_stacked.append(visual_cue_candidates_dict[visual_cue_candidates].detach().cpu().type(torch.float32).unsqueeze(0))
+        print(visual_cue_candidates)
+        visual_cues = visual_cue_candidates_dict[visual_cue_candidates].detach().cpu().type(torch.float32).unsqueeze(0)
+        print(visual_cues.shape)
+        visual_cue_candidates_stacked.append(visual_cues)
+    if len(visual_cue_candidates_stacked) == 0:
+        print("wierd!!!!!!!")
+        print(visual_cue_candidates_dict.keys())
+        print(len(visual_cue_candidates_dict))
     visual_cue_candidates_stacked = torch.cat(visual_cue_candidates_stacked)
     visual_cue_feats = visual_cue_candidates_stacked
     visualcue2patch_similarity = (logit_scale_exp * patch_feats @ visual_cue_feats.t()).t().softmax(dim=-1)

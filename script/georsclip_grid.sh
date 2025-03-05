@@ -2,7 +2,7 @@
 
 # 定义参数范围和步长
 start_path_T=0.3
-end_path_T=0.9
+end_path_T=0.7
 increment_path_T=0.2
 
 start_rsd_T=0.1

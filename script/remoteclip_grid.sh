@@ -2,7 +2,7 @@
 
 # 定义参数范围和步长
 start_path_T=0.3
-end_path_T=0.9
+end_path_T=0.7
 increment_path_T=0.2
 
 start_rsd_T=0.1
@@ -23,7 +23,7 @@ for path_T in $(seq $start_path_T $increment_path_T $end_path_T); do
                 --path_T $path_T \
                 --lrsd_T $rsd_T \
                 --crsd_T $crsd_T \
-                --reduce_fn $1 \
+                --reduce_fn $1
             echo "Finished processing path_T=$path_T, rsd_T=$rsd_T, crsd_T=$crsd_T"
         done
     done
