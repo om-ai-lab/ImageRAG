@@ -802,14 +802,8 @@ def select_visual_cue(vlm_image_feats, bbox_coordinate_list, visual_cue_candidat
     logit_scale_exp = logit_scale_exp.detach().cpu()
     visual_cue_candidates_stacked = []
     for visual_cue_candidates in visual_cue_candidates_dict:
-        print(visual_cue_candidates)
         visual_cues = visual_cue_candidates_dict[visual_cue_candidates].detach().cpu().type(torch.float32).unsqueeze(0)
-        print(visual_cues.shape)
         visual_cue_candidates_stacked.append(visual_cues)
-    if len(visual_cue_candidates_stacked) == 0:
-        print("wierd!!!!!!!")
-        print(visual_cue_candidates_dict.keys())
-        print(len(visual_cue_candidates_dict))
     visual_cue_candidates_stacked = torch.cat(visual_cue_candidates_stacked)
     visual_cue_feats = visual_cue_candidates_stacked
     visualcue2patch_similarity = (logit_scale_exp * patch_feats @ visual_cue_feats.t()).t().softmax(dim=-1)

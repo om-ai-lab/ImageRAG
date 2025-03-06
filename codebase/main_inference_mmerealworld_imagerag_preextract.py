@@ -285,7 +285,6 @@ def image_rag(config, contrastive_vlm_pack, line, client, logger,
                 img_feat_selected_per_cls = []
                 img_names = lrsd_vsd_label2imgname_dict[label]
                 for img_name in img_names:
-                    # feat = lrsd_vsd_imgname2feat_dict[img_name].unsqueeze(0)
                     feat = torch.from_numpy(lrsd_vsd_imgname2feat_dict[img_name])
                     img_feat_selected_per_cls.append(feat)
                 img_feat_selected_per_cls = torch.cat(img_feat_selected_per_cls)
@@ -784,6 +783,7 @@ def inference():
     config["fast_path_T"] = args.path_T
     config["lrsd_T"] = args.lrsd_T
     config["crsd_T"] = args.crsd_T
+    config["dataset_name"] = "mmerealworldlite" if "mmerealworldlite" in args.cfg_path else "mmerealworld"
     
     patch_saving_dir = config['patch_saving_dir']
     os.makedirs(patch_saving_dir, exist_ok=True)
@@ -808,19 +808,25 @@ def inference():
     questions = [question for question in questions if question["Subtask"] == "Remote Sensing"]
     questions = get_chunk(questions, config['num_chunks'], config['chunk_idx'])
     
-    result_filename = "mmerealworldlite_zoom4kvqa10k_imagerag_{}_{}_{}_{}_{}_{}.jsonl".format(
-        config["patch_method"], 
-        config["fast_vlm_model"]["model_name"], 
-        config["fast_path_T"], 
-        config["lrsd_T"],
-        config["crsd_T"],
-        config["reduce_fn"]
-    )
+    if config["mode"] == "imagerag":
+        result_filename = "{}_zoom4kvqa10k_imagerag_{}_{}_{}_{}_{}_{}.jsonl".format(
+            config["dataset_name"],
+            config["patch_method"], 
+            config["fast_vlm_model"]["model_name"], 
+            config["fast_path_T"], 
+            config["lrsd_T"],
+            config["crsd_T"],
+            config["reduce_fn"]
+        )
+        
+        result_filepath = os.path.join(config['work_dir'], "data", "eval", result_filename)
+        config["answers_file_path"] = result_filepath   
+    else:
+        result_filename = config["answers_file_path"].split("/")[-1]
     
     logger = setup_logger(os.path.join(args.log_dir, "log_{}.txt".format(result_filename.replace(".jsonl", ""))))
     
-    result_filepath = os.path.join(config['work_dir'], "data", "eval", result_filename)
-    config["answers_file_path"] = result_filepath
+    
     print("Save to {}".format(config["answers_file_path"]))
     answers_file = os.path.expanduser(config['answers_file_path'])
     os.makedirs(os.path.dirname(answers_file), exist_ok=True)
