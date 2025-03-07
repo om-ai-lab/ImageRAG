@@ -8,7 +8,7 @@ input_image_dir:
   "/data9/shz/dataset/MME-RealWorld/remote_sensing"
 
 patch_saving_dir:
-  "cache/patch/mmerealworldlite"
+  "cache/patch/mmerealworld"
 
 model_input_image_size:
   448
@@ -20,7 +20,7 @@ use_dynamic:
   1
 
 fast_path_T:
-  0.25
+  0.5
 
 num_chunks:
   1
@@ -29,7 +29,7 @@ chunk_idx:
   0
 
 mode:
-  "baseline"
+  "imagerag"
 
 paraphrase_model:
     model_name:
@@ -68,7 +68,7 @@ text_embed_model:
 
 fast_vlm_model:
     model_name:
-      "clip"
+      "mcipclip"
     model_path:
       # "/data1/zilun/ImageRAG0226/checkpoint/RS5M_ViT-L-14-336.pt"
 
@@ -108,10 +108,10 @@ vector_database:
 question_file_path:
   "/data1/zilun/ImageRAG0226/codebase/inference/MME-RealWorld-RS/MME_RealWorld.json"
 answers_file_path:
-  "/data1/zilun/ImageRAG0226/data/eval/mmerealworld_zoom4kvqa10k2epoch_baseline.jsonl"
+  "/data1/zilun/ImageRAG0226/data/eval/mmerealworld_zoom4kvqa10k_imagerag_cc_mcipclip.jsonl"
 
 batch_size:
-  5
+  1
   
 test_prompt:
   "Select the best answer to the above multiple-choice question based on the image. Respond with only the letter (A, B, C, D, or E) of the correct option."

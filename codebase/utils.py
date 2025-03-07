@@ -189,6 +189,12 @@ def extract_vlm_img_text_feat(query, key_text, coordinate_patchname_dict, patch_
         save_dict = pkl.load(open(visfeat_saving_path, "rb"))
         print("Cache found: {}".format(visfeat_saving_path))
         image_features, bbox_coordinate_list = save_dict["image_features"], save_dict["bbox_coordinate_list"]
+        new_bbox_coordinate_list = []
+        for bbox in bbox_coordinate_list:
+            int_bbox = [int(coord) for coord in bbox]
+            new_bbox_coordinate_list.append(int_bbox)
+        bbox_coordinate_list = new_bbox_coordinate_list
+            
     else:
         print("Does not contain {}, begin extracting features".format(visfeat_saving_path))
         with torch.no_grad(), torch.cuda.amp.autocast():
@@ -231,11 +237,12 @@ def extract_vlm_img_text_feat(query, key_text, coordinate_patchname_dict, patch_
     # print(prompt)
     
     
-    if fastvlm_encoder_name == "clip" or fastvlm_encoder_name == "mcipclip":
-        templates = clip_text_template
-    elif fastvlm_encoder_name == "remoteclip" or fastvlm_encoder_name == "georsclip":
-        templates = georsclip_text_template
-        
+    # if fastvlm_encoder_name == "clip" or fastvlm_encoder_name == "mcipclip":
+    #     templates = clip_text_template
+    # elif fastvlm_encoder_name == "remoteclip" or fastvlm_encoder_name == "georsclip":
+    #     templates = georsclip_text_template
+    
+    templates = clip_text_template
     if len(key_text) == 1:
         all_keyphrase_text_without_prompt = [key_text[0]]
         texts = [template.replace('{}', key_text[0]) for template in templates]
@@ -603,8 +610,12 @@ def ranking_patch_t2p(bbox_coordinate_list, t2p_similarity, top_k):
             select_top1_index_list.append(top1_index)
     
     print("Rank1 selection: {}".format(select_top1_value_list))
+    
     candidate_index = index_select + select_top1_index_list
     candidate_similarity = similarity_select + select_top1_value_list
+    
+    # candidate_index = index_select
+    # candidate_similarity = similarity_select
 
     selected_bbox_coordinate_list = np.array(bbox_coordinate_list)[candidate_index]
 
@@ -723,6 +734,9 @@ def ranking_patch_visualcue2patch(bbox_coordinate_list, visualcue2patch_similari
 
     candidate_index = index_select + select_top1_index_list
     candidate_similarity = similarity_select + select_top1_value_list
+    
+    # candidate_index = index_select
+    # candidate_similarity = similarity_select
 
     selected_bbox_coordinate_list = np.array(bbox_coordinate_list)[candidate_index]
     return selected_bbox_coordinate_list, candidate_similarity
@@ -808,7 +822,7 @@ def select_visual_cue(vlm_image_feats, bbox_coordinate_list, visual_cue_candidat
     visual_cue_feats = visual_cue_candidates_stacked
     visualcue2patch_similarity = (logit_scale_exp * patch_feats @ visual_cue_feats.t()).t().softmax(dim=-1)
     # pdb.set_trace()
-    visual_cues,  visual_cues_similarity = ranking_patch_visualcue2patch(bbox_coordinate_list, visualcue2patch_similarity, top_k=2)
+    visual_cues,  visual_cues_similarity = ranking_patch_visualcue2patch(bbox_coordinate_list, visualcue2patch_similarity, top_k=3)
     return visual_cues, visual_cues_similarity
 
 

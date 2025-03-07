@@ -134,7 +134,7 @@ def extract_image_feature(task_id, model_path, img_path_list, batch_size, num_gp
         )
         model = model.to(device).eval()
     
-    elif clip_encoder_name == "MCPICLIP":
+    elif clip_encoder_name == "MCIPCLIP":
         model, _, img_preprocess = open_clip.create_model_and_transforms(
             model_name='ViT-L-14-336-quickgelu',
             pretrained='openai',
@@ -144,7 +144,7 @@ def extract_image_feature(task_id, model_path, img_path_list, batch_size, num_gp
         msg = model.load_state_dict(checkpoint, strict=True)
         print(msg)
         model=model.to(device).eval()
-        print("Load MCPICLIP")
+        print("Load MCIPCLIP")
 
     dataset = ImageFeatureExtractionDataset(img_path_list, img_preprocess)
     dataloader = DataLoader(dataset, batch_size=batch_size, num_workers=0)
@@ -289,7 +289,7 @@ def main_crsd():
 
     parser.add_argument('--batch_size', type=int, default=1000, help='batch size')
 
-    parser.add_argument('--encoder_name', type=str, default="MCPICLIP", help='local mode or auto mode')
+    parser.add_argument('--encoder_name', type=str, default="MCIPCLIP", help='local mode or auto mode')
 
     parser.add_argument('--dataset_img_dir', type=str,
                         default="/data1/zilun/dataset/pub11/img",

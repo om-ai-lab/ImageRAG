@@ -227,7 +227,7 @@ def image_rag(config, contrastive_vlm_pack, line, client, logger,
 
     t2p_similarity = calculate_similarity_matrix(vlm_image_feats, vlm_text_feats, fast_path_vlm.logit_scale.exp())
     # visual_cue (topn, 4) -> [[x1, y1, x2, y2], ...]
-    visual_cue, visual_cue_similarity = ranking_patch_t2p(bbox_coordinate_list, t2p_similarity, top_k=2)
+    visual_cue, visual_cue_similarity = ranking_patch_t2p(bbox_coordinate_list, t2p_similarity, top_k=3)
     visual_cue, visual_cue_similarity = filter_visual_cue_basedon_T(visual_cue, visual_cue_similarity, fast_path_T)
 
     # Slow Path

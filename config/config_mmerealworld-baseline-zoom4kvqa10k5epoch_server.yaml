@@ -76,7 +76,7 @@ llmvqa_model:
   model_name:
     "internvl"
   model_path:
-      "/data1/zilun/ImageRAG0226/checkpoint/InternVL2_5-8B_lora32_vqa10k_zoom4k_2epoch_merged"
+      "/data1/zilun/ImageRAG0226/checkpoint/InternVL2_5-8B_lora32_vqa10k_zoom4k_5epoch_merged"
 
   load_in_8bit:
     True
@@ -108,7 +108,7 @@ vector_database:
 question_file_path:
   "/data1/zilun/ImageRAG0226/codebase/inference/MME-RealWorld-RS/MME_RealWorld.json"
 answers_file_path:
-  "/data1/zilun/ImageRAG0226/data/eval/mmerealworld_zoom4kvqa10k2epoch_baseline.jsonl"
+  "/data1/zilun/ImageRAG0226/data/eval/mmerealworld_zoom4kvqa10k5epoch_baseline.jsonl"
 
 batch_size:
   5

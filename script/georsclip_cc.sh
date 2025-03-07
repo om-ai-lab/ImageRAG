@@ -9,7 +9,7 @@ start_rsd_T=0.1
 end_rsd_T=0.3
 increment_rsd_T=0.1
 
-start_crsd_T=0.1
+start_crsd_T=0.3
 end_crsd_T=0.7
 increment_crsd_T=0.2
 
@@ -19,7 +19,7 @@ for path_T in $(seq $start_path_T $increment_path_T $end_path_T); do
         for crsd_T in $(seq $start_crsd_T $increment_crsd_T $end_crsd_T); do
             # 构建完整的命令并运行
             CUDA_VISIBLE_DEVICES=$2 python codebase/main_inference_mmerealworld_imagerag_preextract.py \
-                --cfg_path /data1/zilun/ImageRAG0226/config/config_mmerealworldlite-imagerag-zoom4kvqa10k2epoch_cc_georsclip_server.yaml \
+                --cfg_path /data1/zilun/ImageRAG0226/config/config_mmerealworldlite-imagerag-zoom4kvqa10k5epoch_cc_georsclip_server.yaml \
                 --path_T $path_T \
                 --lrsd_T $rsd_T \
                 --crsd_T $crsd_T \
