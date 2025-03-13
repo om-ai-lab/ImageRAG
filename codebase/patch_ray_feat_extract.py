@@ -387,7 +387,7 @@ def main_split_image():
                         help='dir of images needed to be extracted')
                         
     parser.add_argument('--patch_method', type=str,
-                        default="grid",
+                        default="vit",
                         help='cc vit or grid')
 
     parser.add_argument('--question_fpath', type=str,
@@ -417,17 +417,21 @@ def main_extract_image():
     parser.add_argument('--batch_size', type=int, default=1000, help='batch size')
 
     parser.add_argument('--dataset_img_dir', type=str,
-                        default="/data1/zilun/ImageRAG0226/cache/patch/mmerealworld/grid",
+                        default="/data1/zilun/ImageRAG0226/cache/patch/mmerealworld/vit",
                         help='dir of images needed to be extracted')
     
     #  args.model_path, args.encoder_name
     parser.add_argument('--encoder_name', type=str, 
-                        # default="CLIP", 
-                        default="GeoRSCLIP", 
+                        # default="CLIP",
+                        # default="GeoRSCLIP", 
+                        # default="RemoteCLIP", 
+                        default="MCIPCLIP", 
                         help='local mode or auto mode')
 
     parser.add_argument('--model_path', type=str,
-                        default="/data1/zilun/ImageRAG0226/checkpoint/RS5M_ViT-L-14-336.pt",
+                        # default="/data1/zilun/ImageRAG0226/checkpoint/RS5M_ViT-L-14-336.pt",
+                        # default="/data1/zilun/ImageRAG0226/checkpoint/RemoteCLIP/RemoteCLIP-ViT-L-14.pt",
+                        default="/data1/zilun/ImageRAG0226/checkpoint/MCIP-ViT-L-14-336.pth",
                         help='model_path')
                         
     args = parser.parse_args()
