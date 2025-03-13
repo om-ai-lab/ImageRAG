@@ -14,7 +14,7 @@ model_input_image_size:
   448
 
 patch_method:
-  "cc"
+  "grid"
 
 use_dynamic:
   1

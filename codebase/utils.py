@@ -22,10 +22,26 @@ from langchain.vectorstores import Chroma, FAISS
 from langchain_huggingface import HuggingFaceEmbeddings
 from codebase.llm_template import clip_text_template, georsclip_text_template
 from sklearn.cluster import DBSCAN
+import random
 
 
 IMAGENET_MEAN = (0.485, 0.456, 0.406)
 IMAGENET_STD = (0.229, 0.224, 0.225)
+
+
+def get_random_subpatch(w, h):
+    random.seed(2024)
+
+    sub_w = random.randint(1, w)
+    sub_h = random.randint(1, h)
+    
+    x1 = random.randint(0, w - sub_w)
+    y1 = random.randint(0, h - sub_h)
+    
+    x2 = x1 + sub_w
+    y2 = y1 + sub_h
+    
+    return x1, y1, x2, y2
 
 
 def enlarge_roibox(roi_box, enlarge_factor, img_size):
@@ -759,8 +775,10 @@ def reduce_visual_cue_per_cls(visual_cue_candidates_dict, keyword_feat_map, fast
                 vsd_cues_feats = vsd_cues_feats / vsd_cues_feats.norm(dim=-1, keepdim=True)
                 
             if len(vsd_cues_feats) > 1:
+                print("Clustering")
                 # pdb.set_trace()
                 feats_np = vsd_cues_feats.cpu().numpy()  # 形状: (N, d)
+                # clustering = DBSCAN(eps=0.3, min_samples=2, algorithm='ball_tree', n_jobs=8).fit(feats_np)
                 clustering = DBSCAN(eps=0.3, min_samples=2).fit(feats_np)
                 labels = clustering.labels_
                 # 排除-1噪声
@@ -789,7 +807,7 @@ def reduce_visual_cue_per_cls(visual_cue_candidates_dict, keyword_feat_map, fast
             vsd_cues_feats = visual_cue_candidates_dict[class_label]
             if len(vsd_cues_feats) > 1:
                 # pdb.set_trace()
-                t2p_similarity = calculate_similarity_matrix(vsd_cues_feats, text_feat, fast_path_vlm.logit_scale.exp())
+                t2p_similarity = calculate_similarity_matrix(vsd_cues_feats, text_feat, fast_path_vlm.logit_scale.exp(), need_feat_normalize=True)
                 topn = min(3, t2p_similarity.shape[1])
                 values, top_indices = t2p_similarity.topk(topn)
                 # top_indices = torch.topk(t2p_similarity, topk).indices
@@ -822,7 +840,7 @@ def select_visual_cue(vlm_image_feats, bbox_coordinate_list, visual_cue_candidat
     visual_cue_feats = visual_cue_candidates_stacked
     visualcue2patch_similarity = (logit_scale_exp * patch_feats @ visual_cue_feats.t()).t().softmax(dim=-1)
     # pdb.set_trace()
-    visual_cues,  visual_cues_similarity = ranking_patch_visualcue2patch(bbox_coordinate_list, visualcue2patch_similarity, top_k=3)
+    visual_cues,  visual_cues_similarity = ranking_patch_visualcue2patch(bbox_coordinate_list, visualcue2patch_similarity, top_k=2)
     return visual_cues, visual_cues_similarity
 
 

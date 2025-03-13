@@ -33,7 +33,7 @@ from codebase.utils import (setup_vlm_model, set_up_paraphrase_model, setup_vqal
                             paraphrase_model_inference, text_expand_model_inference, setup_logger, meta_df2clsimg_dict,
                             img_reduce, select_visual_cue, ranking_patch_visualcue2patch, load_yaml, get_chunk,
                             convert_obb_to_region_str, obb2minhbb, sole_visualcue2mergedvisualcue, visualcue2imagepatch,
-                            reduce_visual_cue_per_cls, setup_lrsd_vsd, setup_pub11_vsd, bbox_location, filter_visual_cue_basedon_T, enlarge_roibox, get_random_subpatch)
+                            reduce_visual_cue_per_cls, setup_lrsd_vsd, setup_pub11_vsd, bbox_location, filter_visual_cue_basedon_T, enlarge_roibox)
 from codebase.sglang_util import get_paraphase_response, get_keyword_response, get_text_expansion_response
 from codebase.utils import load_yaml
 from codebase.patchify import cc_patchify, vit_patchify, grid_patchify
@@ -227,8 +227,8 @@ def image_rag(config, contrastive_vlm_pack, line, client, logger,
 
     t2p_similarity = calculate_similarity_matrix(vlm_image_feats, vlm_text_feats, fast_path_vlm.logit_scale.exp())
     # visual_cue (topn, 4) -> [[x1, y1, x2, y2], ...]
-    visual_cue, visual_cue_similarity = ranking_patch_t2p(bbox_coordinate_list, t2p_similarity, top_k=2)
-    visual_cue, visual_cue_similarity = filter_visual_cue_basedon_T(visual_cue, visual_cue_similarity, fast_path_T)
+    original_visual_cue, original_visual_cue_similarity = ranking_patch_t2p(bbox_coordinate_list, t2p_similarity, top_k=2)
+    visual_cue, visual_cue_similarity = filter_visual_cue_basedon_T(original_visual_cue, original_visual_cue_similarity, fast_path_T)
 
     # Slow Path
     if len(visual_cue) == 0:
@@ -250,101 +250,54 @@ def image_rag(config, contrastive_vlm_pack, line, client, logger,
             for query_keyword in query_keywords:
                 expanded_query_text_dict[query_keyword] = query_keyword
 
-        # Uncomment if not use phrase expansion
-        # expanded_query_text_list = query_keywords
-
-        # embedding = GeoRSCLIPEmbeddings(checkpoint=config['fast_vlm_model']['model_path'], device=device)
-        # vectorstore = Chroma(
-        #     collection_name="mm_georsclip",
-        #     embedding_function=embedding,
-        #     persist_directory=config["vector_database"]["mm_vector_database_dir"],
-        #     collection_metadata = {"hnsw:space": "cosine"}
-        # )
         reverse_map = dict()
-        selected_label_names = []
+        selected_captions = []
+        
         for expanded_query_text in expanded_query_text_dict:
-            results = lrsd_vectorstore.similarity_search_with_score(
-                expanded_query_text, k=3
+            # expanded_query_text_sentence = "A photo of {}".format(expanded_query_text)
+            expanded_query_text_sentence = expanded_query_text
+            results = pub11_vectorstore.similarity_search_with_score(
+                expanded_query_text_sentence, k=3
             )
             for res, score in results:
                 # * [SIM=1.726390] The stock market is down 500 points today due to fears of a recession. [{'source': 'news'}] default l2
-                logger.info(f"Query:={expanded_query_text_dict[expanded_query_text]} * [SIM={score:3f}] {res.page_content}")
-                if score <= config["lrsd_T"]:
-                    selected_label_names.append(res.page_content)
+                logger.info(
+                    f"Query:={expanded_query_text_dict[expanded_query_text]} * [SIM={score:3f}] {res.page_content}")
+                if score <= config["crsd_T"]:
+                    selected_captions.append(res.page_content)
                     reverse_map[res.page_content] = expanded_query_text_dict[expanded_query_text]
-
-        if len(selected_label_names) > 0:
-            logger.info("<path>Slow-LRSD</path>")
-            imagerag_summary.append("Slow-LRSD")
-            selected_label_names = list(set(selected_label_names))
-            logger.info("Selected labels from Text VSD: {}".format(selected_label_names))
-            # label -> feats dict
+                    
+        if len(selected_captions) > 0:
+            logger.info("<path>Slow-CRSD</path>")
+            imagerag_summary.append("Slow-CRSD")
             visual_cue_candidates_dict = dict()
-
-            for label in selected_label_names:
-                img_feat_selected_per_cls = []
-                img_names = lrsd_vsd_label2imgname_dict[label]
+            for caption in selected_captions:
+                img_feat_selected_per_caption = []
+                img_names = pub11_label2imgname_dict[caption]
                 for img_name in img_names:
-                    feat = torch.from_numpy(lrsd_vsd_imgname2feat_dict[img_name])
-                    img_feat_selected_per_cls.append(feat)
-                img_feat_selected_per_cls = torch.cat(img_feat_selected_per_cls)
-                visual_cue_candidates_dict[label] = img_feat_selected_per_cls
-            # keyword_feat_map, fast_path_vlm,
+                    feat = torch.from_numpy(pub11_imgname2feat_dict[img_name])
+                    img_feat_selected_per_caption.append(feat)
+                img_feat_selected_per_caption = torch.cat(img_feat_selected_per_caption)
+                visual_cue_candidates_dict[caption] = img_feat_selected_per_caption
             # pdb.set_trace()
             reduced_visual_cue_per_cls = reduce_visual_cue_per_cls(visual_cue_candidates_dict, keyword_feat_map, fast_path_vlm, reverse_map, reduce_fn=config["reduce_fn"], need_feat_normalize=True)
             visual_cue, visual_cue_similarity = select_visual_cue(vlm_image_feats, bbox_coordinate_list, reduced_visual_cue_per_cls, fast_path_vlm.logit_scale.exp(), need_feat_normalize=True)
+            print(visual_cue, visual_cue_similarity)
             return image_path, visual_cue, visual_cue_similarity, question_with_test_template, query_keywords, imagerag_summary
         else:
-            logger.info("No label text pass the threshold. Cannot find label that match the keywords from query. Try Pub11 VSD.")
-            # pub11_vectorstore, pub11_label2imgname_dict, pub11_imgname2feat_dict,
-            reverse_map = dict()
-            selected_captions = []
-            
-            for expanded_query_text in expanded_query_text_dict:
-                # expanded_query_text_sentence = "A photo of {}".format(expanded_query_text)
-                expanded_query_text_sentence = expanded_query_text
-                results = pub11_vectorstore.similarity_search_with_score(
-                    expanded_query_text_sentence, k=3
-                )
-                for res, score in results:
-                    # * [SIM=1.726390] The stock market is down 500 points today due to fears of a recession. [{'source': 'news'}] default l2
-                    logger.info(
-                        f"Query:={expanded_query_text_dict[expanded_query_text]} * [SIM={score:3f}] {res.page_content}")
-                    if score <= config["crsd_T"]:
-                        selected_captions.append(res.page_content)
-                        reverse_map[res.page_content] = expanded_query_text_dict[expanded_query_text]
-                        
-            if len(selected_captions) > 0:
-                logger.info("<path>Slow-CRSD</path>")
-                imagerag_summary.append("Slow-CRSD")
-                visual_cue_candidates_dict = dict()
-                for caption in selected_captions:
-                    img_feat_selected_per_caption = []
-                    img_names = pub11_label2imgname_dict[caption]
-                    for img_name in img_names:
-                        feat = torch.from_numpy(pub11_imgname2feat_dict[img_name])
-                        img_feat_selected_per_caption.append(feat)
-                    img_feat_selected_per_caption = torch.cat(img_feat_selected_per_caption)
-                    visual_cue_candidates_dict[caption] = img_feat_selected_per_caption
-                # pdb.set_trace()
-                reduced_visual_cue_per_cls = reduce_visual_cue_per_cls(visual_cue_candidates_dict, keyword_feat_map, fast_path_vlm, reverse_map, reduce_fn=config["reduce_fn"], need_feat_normalize=True)
-                visual_cue, visual_cue_similarity = select_visual_cue(vlm_image_feats, bbox_coordinate_list, reduced_visual_cue_per_cls, fast_path_vlm.logit_scale.exp(), need_feat_normalize=True)
-                print(visual_cue, visual_cue_similarity)
-                return image_path, visual_cue, visual_cue_similarity, question_with_test_template, query_keywords, imagerag_summary
-            else:
-                # w, h = original_image.size
-                # visual_cue = [[0, 0, w, h]]
-                # visual_cue_similarity = [1.0]
-                # visual_cue = []
-                # visual_cue_similarity = []
-                logger.info("No caption text pass the threshold. Cannot find caption that match the keywords from query.")
-                imagerag_summary.append("Zero-shot")
-                return image_path, visual_cue, visual_cue_similarity, question_with_test_template, query_keywords, imagerag_summary
+            # w, h = original_image.size
+            # visual_cue = [[0, 0, w, h]]
+            # visual_cue_similarity = [1.0]
+            # visual_cue = []
+            # visual_cue_similarity = []
+            logger.info("No caption text pass the threshold. Cannot find caption that match the keywords from query.")
+            imagerag_summary.append("Zero-shot")
+            return image_path, original_visual_cue, original_visual_cue_similarity, question_with_test_template, query_keywords, imagerag_summary
     else:
         logger.info("<path>Fast</path>")
         imagerag_summary.append("Fast")
         # print(visual_cue, visual_cue_similarity)
-        return image_path, visual_cue, visual_cue_similarity, question_with_test_template, query_keywords, imagerag_summary
+        return image_path, original_visual_cue, original_visual_cue_similarity, question_with_test_template, query_keywords, imagerag_summary
     
 
 
@@ -602,103 +555,6 @@ def inference_internvl(config, questions, ans_file_path, generative_vlm_pack, cl
                 ans_file.flush()
                 index += 1
         ans_file.close()
-        
-    elif config["mode"] == "detection_gt_fake":
-        assert config["batch_size"] == 1
-        for line in tqdm(questions):
-            choices = line['Answer choices']
-            question = line["Text"]
-            image_file = line["Image"]
-            choice_prompt = ' The choices are listed below: \n'
-            for choice in choices:
-                choice_prompt += choice + "\n"
-            image_path = os.path.join(config['input_image_dir'], image_file)
-            question_with_test_template = question + choice_prompt + config["test_prompt"] + '\nThe best answer is:'
-
-            images, tile_num_list = [], []
-
-            image = Image.open(image_path).convert('RGB')
-            w, h = image.size
-
-            if config["use_dynamic"]:
-                print("use dynamic res")
-                image_anyres = generative_vlm_dynamic_preprocess(
-                    image,
-                    max_num=generative_vlm.config.max_dynamic_patch,
-                    image_size=generative_vlm.config.vision_config.image_size,
-                    use_thumbnail=generative_vlm.config.use_thumbnail,
-                )
-            else:
-                image_anyres = [image]
-
-            images += image_anyres
-            pixel_values = [generative_vlm_transform(image) for image in images]
-            pixel_values = torch.stack(pixel_values).to(torch.bfloat16).cuda()
-            tile_num_list.append(len(image_anyres))
-
-            line["visual_cue"] = line["gt_toi"]
-            predict_bbox = line["visual_cue"]
-            # predict_bbox = enlarge_roibox(predict_bbox, config.get("detection_gt_enlarge_factor", 1.0), (w, h))
-            predict_bbox = [int(predict_bbox[0]) / w * 1000, int(predict_bbox[1]) / h * 1000, int(predict_bbox[2]) / w * 1000, int(predict_bbox[3]) / h * 1000]
-            predict_bbox = get_random_subpatch(w, h)
-            
-            if predict_bbox:
-                gc.collect()
-                torch.cuda.empty_cache()
-                visual_cues = [predict_bbox]
-
-                for i, object_coord in enumerate(visual_cues):
-                    x1, y1, x2, y2 = object_coord
-                    x1 = int(x1 / 1000 * w)
-                    y1 = int(y1 / 1000 * h)
-                    x2 = int(x2 / 1000 * w)
-                    y2 = int(y2 / 1000 * h)
-                    image_crop = image.crop((x1, y1, x2, y2))
-                    images.append(image_crop)
-                    tile_num_list.append(1)
-                    if i == 0:
-                        relative_pos = bbox_location(w, h, (x1, y1, x2, y2))
-                pixel_values = [generative_vlm_transform(image) for image in images]
-                pixel_values = torch.stack(pixel_values).to(torch.bfloat16).cuda()
-
-                final_instruction = "<image>\n"
-                final_instruction += "Additional information:\n"
-                for i, bbox in enumerate(visual_cues):
-                    final_instruction += "Sub-patch {} at location <box>[[{:.2f}, {:.2f}, {:.2f}, {:.2f}]]</box>: <image>\n".format(i + 1, *bbox)
-                # final_instruction += "Look at {} of the image and answer the question based on the provided additional information (location of sub-patches). \n".format(relative_pos)
-                final_instruction += "Look at the image and answer the question based on the provided additional information (location of sub-patches). \n"
-                final_instruction += "Question: "
-                final_instruction += question_with_test_template
-                num_patches_list = [pixel_values.size(0) - len(visual_cues), len(visual_cues)]
-
-                response = generative_vlm.chat(
-                    generative_vlm_tokenizer,
-                    pixel_values,
-                    final_instruction,
-                    generative_vlm_generation_config,
-                    num_patches_list=num_patches_list
-                )
-
-            else:
-                final_instruction = question_with_test_template
-                response = generative_vlm.chat(
-                    generative_vlm_tokenizer,
-                    pixel_values,
-                    final_instruction,
-                    generative_vlm_generation_config,
-                )
-
-            with torch.inference_mode():
-                # TODO: visual cues contain full image, duplicate
-
-                print(
-                    f'Prompt: {question_with_test_template}\n\n GT: {line["Ground truth"]} \n Output: {response}')
-                line['output'] = response
-                line['final_instruction'] = final_instruction
-                ans_file.write(json.dumps(line) + "\n")
-                ans_file.flush()
-                index += 1
-        ans_file.close()
 
     elif config["mode"] == "imagerag":
         # imagerag does not support parallel inference
@@ -722,11 +578,7 @@ def inference_internvl(config, questions, ans_file_path, generative_vlm_pack, cl
                 pub11_vectorstore, pub11_vsd_label2imgname_dict, pub11_vsd_imgname2feat_dict,
                 text_paraphrase=False, text_expand=False
             )
-            visual_cues, visual_cues_similarity = filter_visual_cue_basedon_T(visual_cues, visual_cues_similarity, 
-                                                                            #   config['fast_path_T']
-                                                                            0
-                                                                              )
-            # print(visual_cues)
+
             # print(visual_cues_similarity)
             logger.info("Ranked Visual Cues: {}".format(visual_cues))
             logger.info("Visual Cues Similarity: {}".format(visual_cues_similarity))

@@ -9,8 +9,6 @@ import glob
 from torch.utils.data import Dataset, DataLoader
 from tqdm import tqdm
 import pdb
-import json
-import pickle as pkl
 import pandas as pd
 import open_clip
 import pytorch_lightning as pl
@@ -206,7 +204,7 @@ def extract_per_image_feat(task_id, img_dir_list, model_path, clip_encoder_name)
                 # /data1/zilun/ImageRAG0226/cache/patch/mmerealworld/old_cc/03553_Toronto/03553_Toronto_0-0-11500-7500.png
                 lastname = fname.split("_")[-1].split(".")[0]
                 coord = lastname.split("-")
-                coord = [int(c) for c in coord]
+                coord = tuple([int(c) for c in coord])
                 coordinate_patchname_dict[coord] = fname
         
         visfeat_saving_path = os.path.join(img_dir, "{}_vis_feat.pkl".format(clip_encoder_name.lower()))
@@ -425,11 +423,11 @@ def main_extract_image():
     #  args.model_path, args.encoder_name
     parser.add_argument('--encoder_name', type=str, 
                         # default="CLIP", 
-                        default="MCIPCLIP", 
+                        default="GeoRSCLIP", 
                         help='local mode or auto mode')
 
     parser.add_argument('--model_path', type=str,
-                        default="/data1/zilun/ImageRAG0226/checkpoint/MCIP-ViT-L-14-336.pth",
+                        default="/data1/zilun/ImageRAG0226/checkpoint/RS5M_ViT-L-14-336.pt",
                         help='model_path')
                         
     args = parser.parse_args()

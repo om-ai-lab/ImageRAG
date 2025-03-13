@@ -14,7 +14,7 @@ model_input_image_size:
   448
 
 patch_method:
-  "cc"
+  "grid"
 
 use_dynamic:
   1
@@ -68,9 +68,9 @@ text_embed_model:
 
 fast_vlm_model:
     model_name:
-      "mcipclip"
+      "georsclip"
     model_path:
-      "/data1/zilun/ImageRAG0226/checkpoint/MCIP-ViT-L-14-336.pth"
+      "/data1/zilun/ImageRAG0226/checkpoint/RS5M_ViT-L-14-336.pt"
 
 llmvqa_model:
   model_name:
@@ -95,9 +95,9 @@ llmvqa_model:
 vector_database:
     # legacy rs dataset
     lrsd_meta_pkl_path:
-        "/data1/zilun/ImageRAG0226/data/lrsd_mcipclip_1M.pkl"
+        "/data1/zilun/ImageRAG0226/data/lrsd_georsclip_1M.pkl"
     crsd_meta_pkl_path:
-        "/data1/zilun/ImageRAG0226/data/crsd_mcipclip_3M.pkl"
+        "/data1/zilun/ImageRAG0226/data/crsd_georsclip_3M.pkl"
     lrsd_vector_database_dir:
       "cache/vector_database/lrsd_vector_database"
     crsd_vector_database_dir:
@@ -108,7 +108,7 @@ vector_database:
 question_file_path:
   "/data1/zilun/ImageRAG0226/codebase/inference/MME-RealWorld-RS/MME_RealWorld.json"
 answers_file_path:
-  "/data1/zilun/ImageRAG0226/data/eval/mmerealworld_zoom4kvqa10k_imagerag_cc_mcipclip.jsonl"
+  "/data1/zilun/ImageRAG0226/data/eval/mmerealworld_zoom4kvqa10k_imagerag_grid_georsclip.jsonl"
 
 batch_size:
   1

@@ -70,7 +70,7 @@ fast_vlm_model:
     model_name:
       "clip"
     model_path:
-      "/data1/zilun/ImageRAG0226/checkpoint/MCIP-ViT-L-14-336.pth"
+      # "/data1/zilun/ImageRAG0226/checkpoint/RS5M_ViT-L-14-336.pt"
 
 llmvqa_model:
   model_name:
