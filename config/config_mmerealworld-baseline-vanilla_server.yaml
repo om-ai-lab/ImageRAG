@@ -108,7 +108,7 @@ vector_database:
 question_file_path:
   "/data1/zilun/ImageRAG0226/codebase/inference/MME-RealWorld-RS/MME_RealWorld.json"
 answers_file_path:
-  "/data1/zilun/ImageRAG0226/data/eval/mmerealworld_zoom4kvqa10k_baseline.jsonl"
+  "/data1/zilun/ImageRAG0226/data/eval/mmerealworld_zoom4kvqa10k2epoch_baseline.jsonl"
 
 batch_size:
   1
