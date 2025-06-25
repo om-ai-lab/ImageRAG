@@ -25,6 +25,7 @@ from torchvision.transforms.functional import InterpolationMode
 from transformers import AutoModel, AutoTokenizer
 import yaml
 import gc
+from datetime import datetime
 
 
 from codebase.llm_template import paraphrase_template, keyword_template, text_expansion_template, clip_text_template, georsclip_text_template
@@ -864,8 +865,8 @@ def inference():
                         help='Path to the configuration file.')
     parser.add_argument('--log_dir', type=str, default='./log', help='Path to the log file.')
     parser.add_argument('--base_url', type=str, 
-                        # default='http://127.0.0.1:30000/v1', 
-                        default='http://192.168.0.251:30000/v1',
+                        default='http://127.0.0.1:30000/v1', 
+                        # default='http://192.168.0.251:30000/v1',
                         help='base url')
     parser.add_argument('--path_T', type=float, default=0.5, help='threshold for fast or slow path (cosine sim)')
     parser.add_argument('--lrsd_T', type=float, default=0.7, help='threshold for using LRSD (distance)')
@@ -937,4 +938,7 @@ def inference():
 
 
 if __name__ == "__main__":
+    start = datetime.now()
     inference()
+    end = datetime.now()
+    print(end-start)

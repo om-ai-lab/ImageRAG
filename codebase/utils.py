@@ -400,7 +400,8 @@ def setup_vqallm(llmvqa_model_path, llmvqa_model_name, generation_config, input_
             torch_dtype=torch.bfloat16,
             low_cpu_mem_usage=True,
             trust_remote_code=True,
-            load_in_8bit=load_in_8bit
+            load_in_8bit=load_in_8bit,
+            device_map=device
         ).eval()
         tokenizer = AutoTokenizer.from_pretrained(
             model_path,
