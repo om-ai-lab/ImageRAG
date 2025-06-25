@@ -1,9 +1,65 @@
 # ImageRAG
 
+
+## Update
+* 2025.06.25: Upload codebase and scripts.
+
+
+## Overview
+
+* Clone this repo
+    * git clone https://github.com/om-ai-lab/ImageRAG.git
+
+* Download data, caches and checkpoints for ImageRAG from huggingface: 
+    * https://huggingface.co/omlab/ImageRAG
+
+    * The ImageRAG directory structure should look like this:
+        ```bash
+            /training/zilun/ImageRAG
+
+            ├── codebase                        
+                ├── inference
+                ├── patchify
+                ├── main_inference_mmerealworld_imagerag_preextract.py
+                ......                                                     
+            ├── config                        
+                ├── config_mmerealworld-baseline-zoom4kvqa10k2epoch_server.yaml 
+                ├── config_mmerealworld-detectiongt-zoom4kvqa10k2epoch_server.yaml 
+                ......                                                      
+            ├── data                        
+                ├── dataset
+                    ├── MME-RealWorld
+                        ├── remote_sensing
+                            ├── remote_sensing
+                                ├── 03553_Toronto.png 
+                                ......
+                ├── crsd_clip_3M.pkl
+                ......
+            ├── cache                        
+                ├── patch
+                    ├── mmerealworld
+                        ├── vit
+                        ├── cc
+                        ├── grid
+                ├── vector_database 
+                    ├── crsd_vector_database
+                    ├── lrsd_vector_database
+            ├── checkpoint                        
+                ├── InternVL2_5-8B_lora32_vqa10k_zoom4k_2epoch_merged
+                ......     
+            ├── script                        
+                ├── clip_cc.sh
+                ......
+            ```
+
+* Host Qwen2.5-32B-Instruct using SGLang for text parsing module
+
+* Run the inference script/command
+
+
 ## Setup
 
 ```bash
-git clone https://github.com/om-ai-lab/ImageRAG.git
 conda create -n imagerag python=3.10
 conda activate imagerag
 cd /training/zilun/ImageRAG
