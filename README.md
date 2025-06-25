@@ -26,7 +26,7 @@ python
 python -m spacy download en_core_web_sm
 ```
 
-## Init Docker
+## Init SGLang (Docker)
 ```bash
 # Pull the mirror of sglang, just for speeding up the download process.
 docker pull swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/lmsysorg/sglang:latest
