@@ -4,6 +4,9 @@
 </div>
 
 <font size=4><div align='center'> [[🤗 Checkpoint, cache and data](https://huggingface.co/omlab/ImageRAG)] [[📄 Paper](https://ieeexplore.ieee.org/document/11039502)] [[📝 Blog (in Mandarin)](https://mp.weixin.qq.com/s/BcFejPAcxh4Rx_rh1JvRJA)]</div></font> 
+
+By Zilun Zhang, Haozhan Shen, Tiancheng Zhao, Zian Guan, Bin Chen, Yuhao Wang, Xu Jia, Yuxiang Cai, Yongheng Shang, and Jianwei Yin.
+
 ## ✨ Highlight
 
 Ultrahigh resolution (UHR) remote sensing imagery (RSI) (e.g. 10,000 X 10,000 pixels) poses a significant challenge for current RS vision-language models (RSVLMs). If one chooses to resize the UHR image to the standard in
@@ -57,7 +60,7 @@ cess the entire image and capture long-range dependencies to answer the query ba
 * Download data, caches and checkpoints for ImageRAG from huggingface: 
    * https://huggingface.co/omlab/ImageRAG
       
-   * Using the [hf mirror](https://hf-mirror.com/) if you encounter connection problems:
+   * Use [hf mirror](https://hf-mirror.com/) if you encounter connection problems:
        ```bash
        ./hfd.sh omlab/ImageRAG --local-dir ImageRAG_hf
        ```
@@ -135,7 +138,7 @@ python -m spacy download en_core_web_sm
 ```
 
 ## 📖 Setup SGLang (Docker)
-* Host Qwen2.5-32B-Instruct using SGLang for text parsing module
+* Host Qwen2.5-32B-Instruct with SGLang for text parsing module
 
 ```bash
 # Pull sglang docker (we use mirror just for speeding up the download process)
@@ -149,7 +152,7 @@ bash script/sglang_start.sh
 
 
 ## 📖 Feature Extraction (Optional, use Ray to parallelize the process)
-* Necessary if you need to run ImageRAG in cutomized data
+* This is necessary if you want to run ImageRAG using cutomized data
   
 ```bash
 ray start --head --port=6379
