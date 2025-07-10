@@ -2,6 +2,8 @@
 
 
 ## Update
+* TODO: Validate the codebase using uploaded data in isolate enviromemt
+* 2025.07.10: Upload checkpoints, caches and dataset
 * 2025.06.25: Upload codebase and scripts.
 
 
