@@ -1,22 +1,51 @@
 # ImageRAG
 
-* Ultrahigh resolution (UHR) remote sensing imagery (RSI) (e.g. 10,000 × 10,000 pixels) poses a significant challenge for current RS vision-language models (RSVLMs). If one chooses to resize the UHR image to the standard input image size, the extensive spatial and contextual information that UHR images contain will be neglected. Otherwise, the original size of these images often exceeds the token limits of standard RSVLMs, making it difficult to process the entire image and capture long-range dependencies to answer the query based on the abundant visual context. In this article, we introduce ImageRAG for RS, a framework to address the complexities of analyzing UHR RSI with a little training requirement. By transforming the UHR RS image analysis task to the image’s long-context selection task, we design an innovative image contextual retrieval mechanism based on the retrieval-augmented generation (RAG) technique, denoted as ImageRAG. ImageRAG’s core innovation lies in its ability to selectively retrieve and focus on the most relevant portions of the UHR image as visual contexts that pertain to a given query. Fast path and slow path modes are proposed in this framework to handle this task efficiently and effectively. ImageRAG allows RSVLMs to manage extensive context and spatial information from UHR RSI, ensuring that the analysis is both accurate and efficient.
+<img src="teaser.png" alt="imagerag" width="80%">
 
-## Update
+## ✨ Highlight
+
+Ultrahigh resolution (UHR) remote sensing imagery (RSI) (e.g. 10,000 X 10,000 pixels) poses a significant challenge for current RS vision-language models (RSVLMs). If one chooses to resize the UHR image to the standard in
+put image size, the extensive spatial and contextual information that UHR images contain will be neglected. Otherwise, the original size of these images often exceeds the token limits of standard RSVLMs, making it difficult to pro
+cess the entire image and capture long-range dependencies to answer the query based on the abundant visual context. 
+
+* Three crucial aspects for MLLMs to effectively handle UHR RSI are:
+  
+    * Managing small targets, ensuring that the model can accurately be aware and analyze fine details 
+  within images
+  
+    * Processing the UHR image in a way that integrates with MLLMs without significantly increasing 
+  the number of image tokens, which would lead to high computational costs
+  
+    * Achieving these goals while minimizing the need for additional training or specialized 
+  annotation.
+
+
+*  We contribute the ImageRAG framework, which offers several key advantages as follows:
+
+    * It retrieves and emphasizes relevant visual context from the UHR image based on the text query, allowing the MLLM to focus on important details, even tiny ones.
+      
+    * It integrates various external knowledge sources (store in vector database) to guide the model, enhancing the understanding of the query and UHR RSI
+      
+    * ImageRAG requires only a small amount of training, making it a practical solution for efficiently handling UHR RSI.
+
+
+
+## 🚀 Update
+🔥🔥🔥 Last Updated on 2025.07.10 🔥🔥🔥
+
 * **TODO**: Validate the codebase using uploaded data in isolate enviromemt
 
 * **2025.07.10**: Upload checkpoint, cache and dataset.
 
 * **2025.06.25**: Upload codebase and scripts.
   
-* **2025.05.24**: ImageRAG is accepted by IEEE Geoscience and Remote Sensing Magazine
+* 🎉 **2025.05.24**: ImageRAG is accepted by IEEE Geoscience and Remote Sensing Magazine
   * IEEE Early Access (we prefer this version): https://ieeexplore.ieee.org/document/11039502
     
   * Arxiv: https://arxiv.org/abs/2411.07688
 
-<img src="teaser.png" alt="imagerag" width="80%">
 
-## Setup Codebase and Data
+## 📖 Setup Codebase and Data
 
 * Clone this repo:
    * git clone https://github.com/om-ai-lab/ImageRAG.git
@@ -75,7 +104,7 @@
                 ......
         ```
 
-## Setup Env
+## 📖 Setup Env
 
 ```bash
 conda create -n imagerag python=3.10
@@ -100,7 +129,7 @@ python
 python -m spacy download en_core_web_sm
 ```
 
-## Setup SGLang (Docker)
+## 📖 Setup SGLang (Docker)
 * Host Qwen2.5-32B-Instruct using SGLang for text parsing module
 
 ```bash
@@ -114,7 +143,7 @@ bash script/sglang_start.sh
 ```
 
 
-## Feature Extraction (Optional, use Ray to parallelize the process)
+## 📖 Feature Extraction (Optional, use Ray to parallelize the process)
 * Necessary if you need to run ImageRAG in cutomized data
   
 ```bash
@@ -126,7 +155,7 @@ python codebase/ray_feat_extract_vectorstore.py --ray_mode auto --num_runner 8
 # ray stop (optional)
 ```
 
-## Inference
+## 📖 Inference
 
 * See imagerag_result directory for result examples. 
 
@@ -155,10 +184,10 @@ CUDA_VISIBLE_DEVICES=0 python codebase/main_inference_mmerealworld_imagerag_pree
 python codebase/inference/MME-RealWorld-RS/eval_your_results.py --results_file data/eval/mmerealworld_zoom4kvqa10k2epoch_baseline.jsonl
 ```
 
-## Contact
+## 👨‍🏫 Contact
 zilun.zhang@zju.edu.cn
 
-## Citation
+## 🖊️ Citation
 ```bash
 @ARTICLE{11039502,
   author={Zhang, Zilun and Shen, Haozhan and Zhao, Tiancheng and Guan, Zian and Chen, Bin and Wang, Yuhao and Jia, Xu and Cai, Yuxiang and Shang, Yongheng and Yin, Jianwei},
