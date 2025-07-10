@@ -39,7 +39,7 @@ cess the entire image and capture long-range dependencies to answer the query ba
 
 * **2025.06.25**: Upload codebase and scripts.
   
-* 🎉 **2025.05.24**: ImageRAG is accepted by IEEE Geoscience and Remote Sensing Magazine
+* **2025.05.24**: ImageRAG is accepted by IEEE Geoscience and Remote Sensing Magazine 🎉
   * IEEE Early Access (we prefer this version): https://ieeexplore.ieee.org/document/11039502
     
   * Arxiv: https://arxiv.org/abs/2411.07688
