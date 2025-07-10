@@ -117,9 +117,9 @@ bash script/sglang_start.sh
   
 ```bash
 ray start --head --port=6379
-# extract patch features
+# extract patch features (e.g. MMERealworld-RS)
 python codebase/ray_feat_extract_patch.py --ray_mode auto --num_runner 8
-# extract features for vector database
+# extract image & text features for vector database (Section V-D, external data)
 python codebase/ray_feat_extract_vectorstore.py --ray_mode auto --num_runner 8
 # ray stop (optional)
 ```
