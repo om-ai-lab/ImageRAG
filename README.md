@@ -1,5 +1,5 @@
 # ImageRAG
-<img src="teaser.png" alt="imagerag" width="80%">
+<img src="teaser.png" alt="imagerag" width="90%">
 
 <font size=4><div align='center' > [[🤗 Checkpoint, cache and data](https://huggingface.co/omlab/ImageRAG)] [[📄 Paper](https://ieeexplore.ieee.org/document/11039502)] [[📝 Blog (in Mandarin)](https://mp.weixin.qq.com/s/BcFejPAcxh4Rx_rh1JvRJA)]</div></font> 
 ## ✨ Highlight
