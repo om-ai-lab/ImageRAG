@@ -1,7 +1,9 @@
 # ImageRAG
-<img src="teaser.png" alt="imagerag" width="90%">
+<div align="center">
+    <img src="teaser.png" alt="imagerag" width="80%">
+</div>
 
-<font size=4><div align='center' > [[🤗 Checkpoint, cache and data](https://huggingface.co/omlab/ImageRAG)] [[📄 Paper](https://ieeexplore.ieee.org/document/11039502)] [[📝 Blog (in Mandarin)](https://mp.weixin.qq.com/s/BcFejPAcxh4Rx_rh1JvRJA)]</div></font> 
+<font size=4><div align='center'> [[🤗 Checkpoint, cache and data](https://huggingface.co/omlab/ImageRAG)] [[📄 Paper](https://ieeexplore.ieee.org/document/11039502)] [[📝 Blog (in Mandarin)](https://mp.weixin.qq.com/s/BcFejPAcxh4Rx_rh1JvRJA)]</div></font> 
 ## ✨ Highlight
 
 Ultrahigh resolution (UHR) remote sensing imagery (RSI) (e.g. 10,000 X 10,000 pixels) poses a significant challenge for current RS vision-language models (RSVLMs). If one chooses to resize the UHR image to the standard in
