@@ -73,7 +73,7 @@
             ├── script                        
                 ├── clip_cc.sh
                 ......
-            ```
+        ```
 
 ## Setup Env
 
