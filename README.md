@@ -11,6 +11,7 @@
   
 * **2025.05.24**: ImageRAG is accepted by IEEE Geoscience and Remote Sensing Magazine
   * IEEE Early Access (we prefer this version): https://ieeexplore.ieee.org/document/11039502
+    
   * Arxiv: https://arxiv.org/abs/2411.07688
 
 
@@ -98,7 +99,7 @@ python
 python -m spacy download en_core_web_sm
 ```
 
-## Init SGLang (Docker)
+## Setup SGLang (Docker)
 * Host Qwen2.5-32B-Instruct using SGLang for text parsing module
 
 ```bash
@@ -112,7 +113,7 @@ bash script/sglang_start.sh
 ```
 
 
-## Ray Feature Extraction (Optional)
+## Feature Extraction (Optional, use Ray to parallelize the process)
 * Necessary if you need to run ImageRAG in cutomized data
   
 ```bash
@@ -148,10 +149,6 @@ CUDA_VISIBLE_DEVICES=0 python codebase/main_inference_mmerealworld_imagerag_pree
 # eval inference result
 python codebase/inference/MME-RealWorld-RS/eval_your_results.py --results_file data/eval/mmerealworld_zoom4kvqa10k2epoch_baseline.jsonl
 ```
-
-
-
-
 
 
 ## Citation
