@@ -155,6 +155,8 @@ CUDA_VISIBLE_DEVICES=0 python codebase/main_inference_mmerealworld_imagerag_pree
 python codebase/inference/MME-RealWorld-RS/eval_your_results.py --results_file data/eval/mmerealworld_zoom4kvqa10k2epoch_baseline.jsonl
 ```
 
+## Contact
+zilun.zhang@zju.edu.cn
 
 ## Citation
 ```bash
