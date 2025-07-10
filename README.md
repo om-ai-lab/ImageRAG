@@ -102,7 +102,7 @@ python -m spacy download en_core_web_sm
 * Host Qwen2.5-32B-Instruct using SGLang for text parsing module
 
 ```bash
-# Pull the mirror of sglang, just for speeding up the download process.
+# Pull sglang docker (we use mirror just for speeding up the download process)
 docker pull swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/lmsysorg/sglang:latest
 docker tag  swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/lmsysorg/sglang:latest  docker.io/lmsysorg/sglang:latest
 
