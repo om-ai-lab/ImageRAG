@@ -5,15 +5,27 @@
 * 2025.06.25: Upload codebase and scripts.
 
 
-## Overview
+## How to Run
 
-* Clone this repo
-    * git clone https://github.com/om-ai-lab/ImageRAG.git
-
+* Clone this repo:
+   * git clone https://github.com/om-ai-lab/ImageRAG.git
+    
+   
 * Download data, caches and checkpoints for ImageRAG from huggingface: 
-    * https://huggingface.co/omlab/ImageRAG
+   * https://huggingface.co/omlab/ImageRAG
+      
+   * Using the [hf mirror](https://hf-mirror.com/) if you encounter connection problems:
+       * ./hfd.sh omlab/ImageRAG --local-dir ImageRAG_hf
+    
+   * Merge two repos:
+      * mv ImageRAG_hf/cache ImageRAG_hf/checkpoint ImageRAG_hf/data  ImageRAG/
+   
+   * Unzip all zip files:
+      * cache/patch/mmerealworld.zip
+      * cache/vector_database/crsd_vector_database.zip
+      * cache/vector_database/lrsd_vector_database.zip
 
-    * The ImageRAG directory structure should look like this:
+   * The ImageRAG directory structure should look like this:
         ```bash
             /training/zilun/ImageRAG
 
