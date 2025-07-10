@@ -124,14 +124,6 @@ python codebase/ray_feat_extract_vectorstore.py --ray_mode auto --num_runner 8
 # ray stop (optional)
 ```
 
-## Run Inference in Parallel
-
-```bash
-# {clip, georsclip, remoteclip, mcipclip} x {vit, cc, grid} x {rerank, mean, cluster} x {0, ... ,7}
-bash script/georsclip_grid.sh rerank 0
-```
-
-
 ## Run Baseline Inference (No ImageRAG, No GT, No Inference while detecting)
 ```bash
 # inference
@@ -141,6 +133,12 @@ CUDA_VISIBLE_DEVICES=0 python codebase/main_inference_mmerealworld_imagerag_pree
 python codebase/inference/MME-RealWorld-RS/eval_your_results.py --results_file data/eval/mmerealworld_zoom4kvqa10k2epoch_baseline.jsonl
 ```
 
+## Run Regular VQA Task Inference in Parallel
+
+```bash
+# {clip, georsclip, remoteclip, mcipclip} x {vit, cc, grid} x {rerank, mean, cluster} x {0, ... ,7}
+bash script/georsclip_grid.sh rerank 0
+```
 
 ## Run Inferring VQA Task Inference (No ImageRAG, No Inference while detecting, BBoxes are needed)
 ```bash
