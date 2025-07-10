@@ -1,7 +1,7 @@
 # ImageRAG
-
 <img src="teaser.png" alt="imagerag" width="80%">
 
+<font size=4><div align='center' > [[🤗 Checkpoint, cache and data](https://huggingface.co/omlab/ImageRAG)] [[📄 Paper](https://ieeexplore.ieee.org/document/11039502)] [[📝 Blog (in Mandarin)](https://mp.weixin.qq.com/s/BcFejPAcxh4Rx_rh1JvRJA)]</div></font> 
 ## ✨ Highlight
 
 Ultrahigh resolution (UHR) remote sensing imagery (RSI) (e.g. 10,000 X 10,000 pixels) poses a significant challenge for current RS vision-language models (RSVLMs). If one chooses to resize the UHR image to the standard in
@@ -48,18 +48,21 @@ cess the entire image and capture long-range dependencies to answer the query ba
 ## 📖 Setup Codebase and Data
 
 * Clone this repo:
-   * git clone https://github.com/om-ai-lab/ImageRAG.git
-    
+   ```bash
+   git clone https://github.com/om-ai-lab/ImageRAG.git
+   ```
    
 * Download data, caches and checkpoints for ImageRAG from huggingface: 
    * https://huggingface.co/omlab/ImageRAG
       
    * Using the [hf mirror](https://hf-mirror.com/) if you encounter connection problems:
-       * ./hfd.sh omlab/ImageRAG --local-dir ImageRAG_hf
-    
+       ```bash
+       ./hfd.sh omlab/ImageRAG --local-dir ImageRAG_hf
+       ```
    * Merge two repos:
-      * mv ImageRAG_hf/cache ImageRAG_hf/checkpoint ImageRAG_hf/data  ImageRAG/
-   
+      ```bash
+      mv ImageRAG_hf/cache ImageRAG_hf/checkpoint ImageRAG_hf/data  ImageRAG/
+      ```
    * Unzip all zip files:
       * cache/patch/mmerealworld.zip
       * cache/vector_database/crsd_vector_database.zip
