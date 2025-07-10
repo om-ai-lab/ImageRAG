@@ -1,11 +1,11 @@
-# ImageRAG
+#  Enhancing Ultrahigh Resolution Remote Sensing Imagery Analysis With ImageRAG
 <div align="center">
     <img src="teaser.png" alt="imagerag" width="80%">
 </div>
 
 <font size=4><div align='center'> [[🤗 Checkpoint, cache and data](https://huggingface.co/omlab/ImageRAG)] [[📄 Paper](https://ieeexplore.ieee.org/document/11039502)] [[📝 Blog (in Mandarin)](https://mp.weixin.qq.com/s/BcFejPAcxh4Rx_rh1JvRJA)]</div></font> 
 
-By Zilun Zhang, Haozhan Shen, Tiancheng Zhao, Zian Guan, Bin Chen, Yuhao Wang, Xu Jia, Yuxiang Cai, Yongheng Shang, and Jianwei Yin.
+* By Zilun Zhang, Haozhan Shen, Tiancheng Zhao, Zian Guan, Bin Chen, Yuhao Wang, Xu Jia, Yuxiang Cai, Yongheng Shang, and Jianwei Yin.
 
 ## ✨ Highlight
 
