@@ -14,7 +14,7 @@
     
   * Arxiv: https://arxiv.org/abs/2411.07688
 
-<img src="teaser.png" alt="imagerag" width="50%">
+<img src="teaser.png" alt="imagerag" width="80%">
 
 ## Setup Codebase and Data
 
