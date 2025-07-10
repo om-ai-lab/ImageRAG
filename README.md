@@ -1,6 +1,6 @@
 # ImageRAG
 
-* Ultrahigh resolution (UHR) remote sensing imagery (RSI) (e.g. 10,000 × 10,000 pixels) poses a significant challenge for current RS vision-language models (RSVLMs). If one chooses to resize the UHR image to the standard input image size, the extensive spatial and contextual information that UHR images contain will be neglected. Otherwise, the original size of these images often exceeds the token limits of standard RSVLMs, making it difficult to process the entire image and capture long-range dependencies to answer the query based on the abundant visual context. In this article, we introduce ImageRAG for RS, a framework to address the complexities of analyzing UHR RSI with a little training requirement. By transforming the UHR RS image analysis task to the image’s long-context selection task, we design an innovative image contextual retrieval mechanism based on the retrieval-augmented generation (RAG) technique, denoted as ImageRAG. ImageRAG’s core innovation lies in its ability to selectively retrieve and focus on the most relevant portions of the UHR image as visual contexts that pertain to a given query. Fast path and slow path modes are proposed in this framework to handle this task efficiently and effectively. ImageRAG allows RSVLMs to manage extensive context and spatial information from UHR RSI, ensuring that the analysis is both accurate and efficient. 
+* Ultrahigh resolution (UHR) remote sensing imagery (RSI) (e.g. 10,000 × 10,000 pixels) poses a significant challenge for current RS vision-language models (RSVLMs). If one chooses to resize the UHR image to the standard input image size, the extensive spatial and contextual information that UHR images contain will be neglected. Otherwise, the original size of these images often exceeds the token limits of standard RSVLMs, making it difficult to process the entire image and capture long-range dependencies to answer the query based on the abundant visual context. In this article, we introduce ImageRAG for RS, a framework to address the complexities of analyzing UHR RSI with a little training requirement. By transforming the UHR RS image analysis task to the image’s long-context selection task, we design an innovative image contextual retrieval mechanism based on the retrieval-augmented generation (RAG) technique, denoted as ImageRAG. ImageRAG’s core innovation lies in its ability to selectively retrieve and focus on the most relevant portions of the UHR image as visual contexts that pertain to a given query. Fast path and slow path modes are proposed in this framework to handle this task efficiently and effectively. ImageRAG allows RSVLMs to manage extensive context and spatial information from UHR RSI, ensuring that the analysis is both accurate and efficient.
 
 ## Update
 * **TODO**: Validate the codebase using uploaded data in isolate enviromemt
@@ -14,6 +14,7 @@
     
   * Arxiv: https://arxiv.org/abs/2411.07688
 
+<img src="teaser.png" alt="imagerag" width="50%">
 
 ## Setup Codebase and Data
 
