@@ -38,7 +38,7 @@ cess the entire image and capture long-range dependencies to answer the query ba
 ## 🚀 Update
 🔥🔥🔥 Last Updated on 2025.07.10 🔥🔥🔥
 
-*  ~~**TODO**: Validate the codebase using uploaded data in isolate enviromemt.~~ This codebase is validated by many other works.
+*  ~~**TODO**: Validate the codebase using uploaded data in isolate enviromemt.~~ This codebase is validated in my local env and many other works.
 
 * **2025.07.10**: Upload checkpoint, cache and dataset.
 
